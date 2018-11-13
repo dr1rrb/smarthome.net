@@ -1,0 +1,8 @@
+version: '3.4'
+
+services:
+  smarthomedotnet:
+    image: ${DOCKER_REGISTRY}smarthomedotnet
+    build:
+      context: .
+      dockerfile: SmartHomeDotNet.App/Dockerfile
