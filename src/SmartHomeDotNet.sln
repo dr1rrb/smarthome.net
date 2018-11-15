@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.App", "Smar
 EndProject
 Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{6F62BF12-E1CD-48E0-9C7F-ADE9FB32C2A6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Package", "..\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj", "{DEAC4FF6-4898-494C-A9BA-EE9BF853516B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Package", "SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj", "{DEAC4FF6-4898-494C-A9BA-EE9BF853516B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
