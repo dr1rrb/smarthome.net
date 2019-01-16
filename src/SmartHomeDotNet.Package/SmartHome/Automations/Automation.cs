@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using SmartHomeDotNet.Logging;
 
 namespace SmartHomeDotNet.SmartHome.Automations
 {
@@ -13,6 +14,11 @@ namespace SmartHomeDotNet.SmartHome.Automations
 	{
 		private readonly SerialDisposable _automationSubscription = new SerialDisposable();
 		private readonly IDisposable _hostSubscription;
+
+		/// <summary>
+		/// Gets the identifier of this scene
+		/// </summary>
+		public string Id { get; }
 
 		/// <summary>
 		/// The name of the automation
@@ -30,20 +36,38 @@ namespace SmartHomeDotNet.SmartHome.Automations
 		/// <param name="name">The friendly name of the automation</param>
 		/// <param name="host">The host that manages this automation</param>
 		protected Automation(string name, IAutomationHost host)
+			: this(null, name, host)
 		{
-			Name = name;
-			Scheduler = host.Scheduler;
+		}
 
-			_hostSubscription = host
-				.GetAndObserveIsEnabled(this)
+		/// <summary>
+		/// Creates a new automation
+		/// </summary>
+		/// <param name="name">The friendly name of the automation</param>
+		/// <param name="host">The host that manages this automation</param>
+		protected Automation(string id, string name, IAutomationHost host)
+		{
+			Id = id ?? name;
+			Name = name ?? throw new ArgumentNullException(nameof(name));
+			Scheduler = host.Scheduler ?? throw new InvalidOperationException("Host's scheduler is 'null'.");
+
+			_hostSubscription = Observable
+				.DeferAsync(async ct =>
+				{
+					await host.Initialized(ct, this);
+
+					return host.GetAndObserveIsEnabled(this);
+				})
 				.Do(isEnabled =>
 				{
-					// Make sure to always abort the pending execution, even if 'Enabled()' fails
+					// Make sure to always abort the pending execution, even if 'Enable()' fails
 					_automationSubscription.Disposable = null;
 					if (isEnabled)
 					{
 						_automationSubscription.Disposable = Enable();
 					}
+
+					this.Log().Info($"Automation '{Name}' is now enabled: {isEnabled}");
 				})
 				.Subscribe(host);
 		}

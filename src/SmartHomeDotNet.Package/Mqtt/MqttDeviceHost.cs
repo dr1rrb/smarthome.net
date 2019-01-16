@@ -15,8 +15,8 @@ namespace SmartHomeDotNet.Mqtt
 		public IScheduler Scheduler { get; }
 
 		public MqttDeviceHost(
-			MqttClient mqtt, 
-			Func<string, string> deviceIdToTopic, 
+			MqttClient mqtt,
+			Func<string, string> deviceIdToTopic,
 			IScheduler scheduler)
 		{
 			Scheduler = scheduler;
@@ -24,7 +24,7 @@ namespace SmartHomeDotNet.Mqtt
 			_deviceIdToTopic = deviceIdToTopic;
 		}
 
-		public IObservable<DeviceState> GetAndObserveState(IDevice device) 
+		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> _mqtt
 				.GetAndObserveState(_deviceIdToTopic(device.Id))
 				.Select(topic => new DeviceState(device.Id, topic.Values));

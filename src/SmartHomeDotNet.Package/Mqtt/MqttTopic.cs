@@ -47,7 +47,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		public bool TryUpdate(string value, bool retained)
 		{
-			if (!retained)
+			if (!retained && !_hasLocalValue)
 			{
 				_updates.OnNext((this, value));
 				Parent?.ChildUpdated((this, value));

@@ -46,7 +46,7 @@ namespace SmartHomeDotNet.Mqtt
 				return;
 			}
 
-			var id = GetId(automation);
+			var id = "automation_" + GetId(automation);
 			var config = new HomeAssistantConfig
 			{
 				Id = id,
@@ -54,11 +54,11 @@ namespace SmartHomeDotNet.Mqtt
 				StateTopic = GetStateTopic(automation),
 				StateOn = "enabled",
 				StateOff = "disabled",
-				IsOptimistic = false,
-				CommandTopic = GetControlTopic(automation),
-				PayloadOn = "start",
-				PayloadOff = "stop",
-				IsRetained = false,
+				IsOptimistic = true, // TODO: Add ability for automation to confirm state, then add control channel and set it pessimistic
+				CommandTopic = GetStateTopic(automation),
+				PayloadOn = "enabled",
+				PayloadOff = "disabled",
+				IsRetained = true,
 				AvailabilityTopic = _mqtt.AvailabilityTopic,
 				Icon = "mdi:script-text-outline"
 			};
@@ -69,14 +69,14 @@ namespace SmartHomeDotNet.Mqtt
 		/// <inheritdoc />
 		public IObservable<bool> GetAndObserveIsEnabled(Automation automation)
 			=> _mqtt
-				.GetAndObserveState(GetStateTopic(automation))
+				.GetAndObserveState(GetTopic(automation))
 				.Select(state => state.Values.GetValueOrDefault("state") == "enabled")
 				.DistinctUntilChanged();
 
 		// TODO: Cache those
-		private string GetId(Automation automation) => _invalidChars.Replace(automation.Name, "_").ToLowerInvariant();
+		private string GetId(Automation automation) => _invalidChars.Replace(automation.Id, "_").ToLowerInvariant();
 		private string GetStateTopic(Automation automation) => GetTopic(automation, "state");
-		private string GetControlTopic(Automation automation) => GetTopic(automation, "control");
-		private string GetTopic(Automation automation, string subLevel) => $"{_baseTopic}/{GetId(automation)}/{subLevel}";
+		private string GetTopic(Automation automation, string subLevel) => $"{_baseTopic}/automation/{GetId(automation)}/{subLevel}";
+		private string GetTopic(Automation automation) => $"{_baseTopic}/automation/{GetId(automation)}";
 	}
 }

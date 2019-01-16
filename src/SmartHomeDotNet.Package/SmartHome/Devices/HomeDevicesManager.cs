@@ -26,7 +26,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 			=> GetOrCreate(deviceId).AsDynamic();
 
 		public HomeDevice<TDevice> GetDevice<TDevice>(string deviceId)
-			where TDevice : IDeviceAdapter, new() 
+			where TDevice : IDeviceAdapter, new()
 			=> GetOrCreate(deviceId).As<TDevice>();
 
 		private Device GetOrCreate(string deviceId)
@@ -125,7 +125,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 			}
 
 			/// <inheritdoc />
-			public void Dispose() 
+			public void Dispose()
 				=> Interlocked.Exchange(ref _casts, null)?.Values.DisposeAllOrLog("Failed to dispoe a casted device");
 		}
 	}

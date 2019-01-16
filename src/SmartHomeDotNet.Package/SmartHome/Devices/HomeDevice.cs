@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Reactive.Threading.Tasks;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -59,7 +60,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		}
 
 		/// <inheritdoc />
-		public void Dispose() 
+		public void Dispose()
 			=> _subscription.Dispose();
 
 		/// <summary>
@@ -68,7 +69,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		public struct Awaiter : INotifyCompletion
 		{
 			private readonly HomeDevice<TDevice> _owner;
-			private AsyncSubject<(bool, TDevice)> _awaiter;
+			private TaskAwaiter<(bool, TDevice)>? _awaiter;
 
 			public Awaiter(HomeDevice<TDevice> device)
 			{
@@ -87,7 +88,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 					: throw new InvalidOperationException("This awaiter cannot run synchronously.");
 			}
 
-			public void OnCompleted(Action continuation)
+			public async void OnCompleted(Action continuation)
 			{
 				if (_owner._device.Value.hasValue)
 				{
@@ -97,10 +98,10 @@ namespace SmartHomeDotNet.SmartHome.Devices
 				{
 					if (_awaiter == null)
 					{
-						Interlocked.CompareExchange(ref _awaiter, _owner._device.GetAwaiter(), null);
+						_awaiter = _owner._device.FirstAsync(d => d.hasValue).ToTask(CancellationToken.None).GetAwaiter();
 					}
 
-					_awaiter.OnCompleted(continuation);
+					_awaiter.Value.OnCompleted(continuation);
 				}
 			}
 		}

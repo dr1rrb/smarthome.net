@@ -18,6 +18,11 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 		private readonly IDisposable _subscription;
 
 		/// <summary>
+		/// Gets the identifier of this scene
+		/// </summary>
+		public string Id { get; }
+
+		/// <summary>
 		/// Gets the name of this scene
 		/// </summary>
 		public string Name { get; }
@@ -33,9 +38,20 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 		/// <param name="name">The friendly name of the scene</param>
 		/// <param name="host">The host that manages this scene</param>
 		protected Scene(string name, ISceneHost host)
+			: this(null, name, host)
 		{
-			Name = name;
-			Scheduler = host.Scheduler;
+		}
+
+		/// <summary>
+		/// Creates a new scene
+		/// </summary>
+		/// <param name="name">The friendly name of the scene</param>
+		/// <param name="host">The host that manages this scene</param>
+		protected Scene(string id, string name, ISceneHost host)
+		{
+			Id = id ?? name;
+			Name = name ?? throw new ArgumentNullException(nameof(name));
+			Scheduler = host.Scheduler ?? throw new InvalidOperationException("Host's scheduler is 'null'.");
 
 			_host = host ?? throw new ArgumentNullException(nameof(host));
 			_subscription = Observable

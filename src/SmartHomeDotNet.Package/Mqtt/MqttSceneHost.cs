@@ -45,7 +45,7 @@ namespace SmartHomeDotNet.Mqtt
 				return;
 			}
 
-			var id = GetId(scene);
+			var id = "scene_" + GetId(scene);
 			var config = new HomeAssistantConfig
 			{
 				Id = id,
@@ -82,9 +82,9 @@ namespace SmartHomeDotNet.Mqtt
 		}
 
 		// TODO: Cache those
-		private string GetId(Scene scene) => _invalidChars.Replace(scene.Name, "_").ToLowerInvariant();
+		private string GetId(Scene scene) => _invalidChars.Replace(scene.Id, "_").ToLowerInvariant();
 		private string GetStateTopic(Scene scene) => GetTopic(scene, "state");
 		private string GetControlTopic(Scene scene) => GetTopic(scene, "control");
-		private string GetTopic(Scene scene, string subLevel) => $"{_baseTopic}/{GetId(scene)}/{subLevel}";
+		private string GetTopic(Scene scene, string subLevel) => $"{_baseTopic}/scene/{GetId(scene)}/{subLevel}";
 	}
 }

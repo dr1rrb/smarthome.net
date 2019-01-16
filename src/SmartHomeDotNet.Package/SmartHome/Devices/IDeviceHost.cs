@@ -17,7 +17,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Gets an observable sequence of changes for a device
 		/// </summary>
-		/// <remarks>It is expected that the sequence starts immediatly with an initial of changes to reflect the current state of the device.</remarks>
+		/// <remarks>It is expected that the sequence starts immediately with an initial of changes to reflect the current state of the device.</remarks>
 		/// <param name="id">Identifier of the target device</param>
 		/// <returns></returns>
 		IObservable<DeviceState> GetAndObserveState(IDevice device);

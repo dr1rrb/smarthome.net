@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Text;
@@ -26,10 +27,10 @@ namespace SmartHomeDotNet
 
 			using (Initializing())
 			{
-				Subscriptions.AddRange(CreateHubs());
+				Subscriptions.AddRange(CreateHubs() ?? Enumerable.Empty<IDisposable>());
 				CreateRooms();
-				Subscriptions.AddRange(CreateScenes());
-				Subscriptions.AddRange(CreateAutomations());
+				Subscriptions.AddRange(CreateScenes() ?? Enumerable.Empty<IDisposable>());
+				Subscriptions.AddRange(CreateAutomations() ?? Enumerable.Empty<IDisposable>());
 			}
 		}
 

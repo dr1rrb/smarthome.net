@@ -69,7 +69,8 @@ namespace SmartHomeDotNet.Mqtt
 					return mqttTopic
 						.ObserveUpdates()
 						.StartWith(Scheduler.Immediate, default((MqttTopic, string)))
-						.Select(_ => mqttTopic.ToImmutable());
+						.Select(_ => mqttTopic.ToImmutable())
+						.DistinctUntilChanged();
 				})
 				.Finally(Release);
 		}
@@ -235,8 +236,8 @@ namespace SmartHomeDotNet.Mqtt
 						_scheduler)
 					.ObserveOn(_scheduler)
 					.Select(message => _topics.TryUpdate(
-						message.EventArgs.Topic, 
-						Encoding.UTF8.GetString(message.EventArgs.Message), 
+						message.EventArgs.Topic,
+						Encoding.UTF8.GetString(message.EventArgs.Message),
 						message.EventArgs.Retain));
 
 				return received.Merge(closed).Publish();
