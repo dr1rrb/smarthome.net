@@ -9,7 +9,7 @@ using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet
 {
-	public class SmartHomeBase : IDisposable
+	public class SmartHomeBase : IActivable, IDisposable
 	{
 		private int _isEnabled = 0;
 
@@ -17,6 +17,9 @@ namespace SmartHomeDotNet
 		{
 			Scheduler = defaultScheduler ?? TaskPoolScheduler.Default;
 		}
+
+		/// <inheritdoc />
+		void IActivable.Enable() => MakeItSmart();
 
 		public void MakeItSmart()
 		{

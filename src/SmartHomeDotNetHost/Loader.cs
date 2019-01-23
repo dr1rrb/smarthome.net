@@ -25,7 +25,7 @@ namespace SmartHomeDotNet
 				.Select(TryLoad)
 				.Where(a => a != null)
 				.SelectMany(a => a.GetTypes())
-				.Where(t => t.IsAssignableFrom(typeof(IActivable)))
+				.Where(t => typeof(IActivable).IsAssignableFrom(t))
 				.Select(TryCreate)
 				.Where(a => a != null);
 

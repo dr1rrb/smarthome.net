@@ -4,8 +4,15 @@
     <TargetFramework>netcoreapp2.0</TargetFramework>
     <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
     <RootNamespace>SmartHomeDotNet</RootNamespace>
-    <AssemblyName>SmartHomeDotNet</AssemblyName>
+    <AssemblyName>SmartHomeDotNetHost</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="SmartHome\**" />
+    <Content Remove="SmartHome\**" />
+    <EmbeddedResource Remove="SmartHome\**" />
+    <None Remove="SmartHome\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <Folder Include="wwwroot\" />

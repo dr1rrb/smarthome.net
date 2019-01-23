@@ -5,4 +5,4 @@ services:
     image: ${DOCKER_REGISTRY}smarthomedotnet
     build:
       context: .
-      dockerfile: SmartHomeDotNet.App/Dockerfile
+      dockerfile: SmartHomeDotNetHost/Dockerfile
