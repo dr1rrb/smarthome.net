@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Dynamic;
 using System.Linq;
 using System.Threading;
@@ -10,27 +12,30 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	/// </summary>
 	public class Device : IDeviceAdapter, IDevice
 	{
-		private int _isInit;
+		private DeviceState _state;
+		private dynamic _value;
 
 		/// <summary>
 		/// The Id of this device
 		/// </summary>
-		public string Id { get; private set; }
+		public string Id => GetState().DeviceId;
 
 		/// <summary>
-		/// The source value of the device
+		/// The raw source value of the device
 		/// </summary>
-		protected dynamic Value { get; private set; }
+		protected dynamic Raw => _value ?? (_value = GetState().ToDynamic());
 
 		/// <inheritdoc />
-		void IDeviceAdapter.Init(string id, ExpandoObject values)
+		void IDeviceAdapter.Init(DeviceState state)
 		{
-			if (Interlocked.CompareExchange(ref _isInit, 1, 0) == 0)
+			if (state == null)
 			{
-				Id = id;
-				Value = values;
+				throw new ArgumentNullException(nameof(state));
+			}
 
-				OnInit(values);
+			if (Interlocked.CompareExchange(ref _state, state, null) == null)
+			{
+				OnInit();
 			}
 			else
 			{
@@ -41,7 +46,33 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Callback invoked when this device get initialized
 		/// </summary>
-		/// <param name="value">The value of this device</param>
-		protected virtual void OnInit(ExpandoObject value) { }
+		protected virtual void OnInit() { }
+
+		/// <summary>
+		/// Try to get the value of a property, if value is missing returns null
+		/// </summary>
+		/// <param name="property">Name of the property</param>
+		/// <returns>The value of the property or `null` is the property was not set.</returns>
+		protected string GetValueOrDefault(string property)
+			=> GetState().Properties.GetValueOrDefault(property);
+
+		/// <summary>
+		/// Try to get the value of a property
+		/// </summary>
+		/// <param name="property">Name of the property</param>
+		/// <param name="value">The value of the property</param>
+		/// <returns>A boolean which indicate if the property was set or not.</returns>
+		protected bool TryGetValue(string property, out string value)
+			=> GetState().Properties.TryGetValue(property, out value);
+
+		private DeviceState GetState()
+		{
+			if (_state == null)
+			{
+				throw new InvalidOperationException("Device not initialized");
+			}
+
+			return _state;
+		}
 	}
 }

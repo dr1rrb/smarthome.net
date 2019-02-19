@@ -21,7 +21,7 @@ namespace SmartHomeDotNet.SmartHome.Automations
 		/// </summary>
 		/// <param name="ct">Cancellation to cancel the asynchronous action</param>
 		/// <param name="automation">The automation that has is now initialized</param>
-		/// <returns>An synchonous operation</returns>
+		/// <returns>An synchronous operation</returns>
 		Task Initialized(CancellationToken ct, Automation automation);
 
 		/// <summary>

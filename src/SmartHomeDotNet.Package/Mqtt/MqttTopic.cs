@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reactive.Subjects;
@@ -11,10 +12,19 @@ namespace SmartHomeDotNet.Mqtt
 		private bool _hasLocalValue;
 		private string _localValue;
 
+		/// <summary>
+		/// The full topic path
+		/// </summary>
 		public string Topic { get; }
 
+		/// <summary>
+		/// The last level of the topic
+		/// </summary>
 		public string Level { get; }
 
+		/// <summary>
+		/// The parent topic, or null if this topic is root
+		/// </summary>
 		public MqttTopic Parent { get; }
 
 		/// <summary>
@@ -85,14 +95,35 @@ namespace SmartHomeDotNet.Mqtt
 			return false;
 		}
 
-		public MqttTopicValues ToImmutable()
+		public MqttTopicValues ToImmutable(MqttTopic changedTopic, string changedValue)
 		{
 			// For now, we support only top level values
-			var values = _children
-				.Values
-				.ToImmutableDictionary(subTopic => subTopic.Level, subTopic => subTopic._localValue);
 
-			return new MqttTopicValues(Topic, values);
+			var localValue = _localValue;
+			var childrenValues = _children
+				.Values
+				.Where(child => child._hasLocalValue)
+				.Select(child => (child, child._localValue)) as IEnumerable<(MqttTopic topic, string value)>;
+
+			if (changedTopic == this)
+			{
+				localValue = changedValue;
+			}
+			else if (changedTopic?.Parent == this)
+			{
+				childrenValues = childrenValues
+					.Where(child => child.topic != changedTopic)
+					.Concat(new [] {(changedTopic, changedValue)});
+			}
+
+			return new MqttTopicValues(
+				Topic, 
+				localValue, 
+				childrenValues.ToImmutableDictionary(c => c.topic.Level, c => c.value),
+				changedTopic == null
+					? HasValue // For the initial value we consider as retained only if we actually have any values
+					: changedTopic._localValue == changedValue // For changes notif, we only have to check if the value was effectively persisted or not
+				);
 		}
 	}
 }

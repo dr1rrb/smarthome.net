@@ -17,7 +17,7 @@ namespace SmartHomeDotNet
 	{
 		public static string WorkingDirectory =
 #if DEBUG
-			Path.Combine(Directory.GetCurrentDirectory(), "bin/Debug/netcoreapp2.0/smarthome");
+			Path.Combine(Directory.GetCurrentDirectory(), "bin/Debug/netcoreapp2.1/smarthome");
 #else
 			"/smarthome";
 #endif
@@ -27,6 +27,7 @@ namespace SmartHomeDotNet
 			try
 			{
 				Logger.SetProvider(_ => SerilogAdapter.Instance);
+				Directory.CreateDirectory(WorkingDirectory);
 				BuildWebHost(args).Run();
 			} 
 			catch (Exception e)
