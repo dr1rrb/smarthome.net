@@ -31,5 +31,13 @@ namespace SmartHomeDotNet.Utils
 
 			return disposable;
 		}
+
+		public static TDisposable DisposeWith<TDisposable>(this TDisposable disposable, CompositeDisposable disposables)
+			where TDisposable : IDisposable
+		{
+			disposables.Add(disposable);
+
+			return disposable;
+		}
 	}
 }

@@ -46,7 +46,7 @@ namespace SmartHomeDotNet.Hass.Entities
 		}
 
 		/// <summary>
-		/// Gets a boolean which indicates if the fan is currenlty on or not
+		/// Gets a boolean which indicates if the fan is currently on or not
 		/// </summary>
 		public bool IsOn => Raw.state == "on";
 
