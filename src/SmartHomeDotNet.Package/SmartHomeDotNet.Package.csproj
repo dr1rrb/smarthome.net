@@ -4,6 +4,17 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>SmartHomeDotNet</AssemblyName>
     <RootNamespace>SmartHomeDotNet</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>Dr1rrb</Authors>
+    <PackageId>smarthomedotnet</PackageId>
+    <PackageProjectUrl>https://github.com/dr1rrb/smarthome.net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dr1rrb/smarthome.net</RepositoryUrl>
+    <PackageTags>iot home-assistant hass mqtt zigbee</PackageTags>
+    <NeutralLanguage>en-US</NeutralLanguage>
+  </PropertyGroup>
+
+  <PropertyGroup>
+	<GeneratePackageOnBuild Condition="$(Configuration)=='Release'">true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
