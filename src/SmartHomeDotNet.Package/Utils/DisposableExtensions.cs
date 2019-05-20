@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Disposables;
 using SmartHomeDotNet.Logging;
 
 namespace SmartHomeDotNet.Utils
@@ -21,6 +22,14 @@ namespace SmartHomeDotNet.Utils
 					disposables.Log().Error(logMessage, e);
 				}
 			}
+		}
+
+		public static TDisposable DisposeWith<TDisposable>(this TDisposable disposable, SerialDisposable serial)
+			where TDisposable : IDisposable
+		{
+			serial.Disposable = disposable;
+
+			return disposable;
 		}
 	}
 }

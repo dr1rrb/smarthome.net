@@ -1,16 +1,18 @@
 ﻿using System;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using SmartHomeDotNet.Logging;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Automations
 {
 	/// <summary>
 	/// The base class for a smart home automation
 	/// </summary>
-	public abstract class Automation : IDisposable
+	public abstract partial class Automation : IDisposable
 	{
 		private readonly SerialDisposable _automationSubscription = new SerialDisposable();
 		private readonly IDisposable _hostSubscription;
@@ -64,12 +66,16 @@ namespace SmartHomeDotNet.SmartHome.Automations
 					_automationSubscription.Disposable = null;
 					if (isEnabled)
 					{
-						_automationSubscription.Disposable = Enable();
+						using (new AsyncContext(Scheduler)) // AsyncContext is used here only to propagate the IScheduler
+						{
+							_automationSubscription.Disposable = Enable();
+						}
 					}
 
 					this.Log().Info($"Automation '{Name}' is now enabled: {isEnabled}");
 				})
-				.Subscribe(host);
+				.Retry(Constants.DefaultRetryDelay, Scheduler)
+				.Subscribe();
 		}
 
 		/// <summary>

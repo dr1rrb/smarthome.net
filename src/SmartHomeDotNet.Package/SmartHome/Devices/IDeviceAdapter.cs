@@ -12,8 +12,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Initialize the device with its values
 		/// </summary>
-		/// <param name="id">The id of the device</param>
-		/// <param name="values">The values of this instance of the device</param>
-		void Init(string id, ExpandoObject values);
+		/// <param name="state">The values of this instance of the device</param>
+		void Init(DeviceState state);
 	}
 }

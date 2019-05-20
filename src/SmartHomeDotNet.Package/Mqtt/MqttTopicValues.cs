@@ -13,18 +13,27 @@ namespace SmartHomeDotNet.Mqtt
 		/// Creates  anew instance
 		/// </summary>
 		/// <param name="topic">The owning topic</param>
-		/// <param name="values">The current values of the topic</param>
-		public MqttTopicValues(string topic, ImmutableDictionary<string, string> values)
+		/// <param name="value">TRhe local value of the topic</param>
+		/// <param name="children">The current values of the topic</param>
+		public MqttTopicValues(string topic, string value, ImmutableDictionary<string, string> children, bool isRetainedState)
 		{
 			Topic = topic;
-			Values = values;
+			Value = value;
+			Values = children;
+			IsRetainedState = isRetainedState;
 		}
 
+		public bool IsRetainedState { get; set; }
 
 		/// <summary>
 		/// The topic of this values
 		/// </summary>
 		public string Topic { get; }
+
+		/// <summary>
+		/// The local value of this topic
+		/// </summary>
+		public string Value { get; }
 
 		/// <summary>
 		/// The current values of the topic
@@ -53,6 +62,7 @@ namespace SmartHomeDotNet.Mqtt
 			}
 
 			return left.Topic.Equals(right.Topic, StringComparison.OrdinalIgnoreCase)
+				&& (left.Value?.Equals(right.Value, StringComparison.Ordinal) ?? right.Value == null)
 				&& left.Values.SequenceEqual(right.Values);
 		}
 

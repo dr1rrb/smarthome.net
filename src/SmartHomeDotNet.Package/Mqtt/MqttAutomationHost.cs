@@ -50,7 +50,7 @@ namespace SmartHomeDotNet.Mqtt
 			var config = new HomeAssistantConfig
 			{
 				Id = id,
-				Name = automation.Name,
+				Name = id, // cf. comment below
 				StateTopic = GetStateTopic(automation),
 				StateOn = "enabled",
 				StateOff = "disabled",
@@ -60,18 +60,38 @@ namespace SmartHomeDotNet.Mqtt
 				PayloadOff = "disabled",
 				IsRetained = true,
 				AvailabilityTopic = _mqtt.AvailabilityTopic,
-				Icon = "mdi:script-text-outline"
+				Icon = "mdi:clipboard-text-play" // "mdi:script-text-outline"
 			};
 
-			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: true);
+			// With first publish the automation using the "id" as "name" so Home assistant
+			// will use it as "entity_id" (which cannot be configured from discovery component)
+			// Then we publish it a second time using the right name.
+			// Note: HA will not generate 2 different devices as we are providing de vice "unique_id" which stays the same.
+			// Note: This is a patch which works only if HA is up when this config is published, if not, you can still change the entity_id from the UI
+
+			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
+			config.Name = automation.Name;
+			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
 		}
 
 		/// <inheritdoc />
 		public IObservable<bool> GetAndObserveIsEnabled(Automation automation)
-			=> _mqtt
+		{
+			var isClientEnabled = _mqtt
+				.GetAndObserveIsEnabled();
+			var isAutomationEnabled = _mqtt
 				.GetAndObserveState(GetTopic(automation))
-				.Select(state => state.Values.GetValueOrDefault("state") == "enabled")
+				.Select(state =>
+				{
+					var s = state.Values.GetValueOrDefault("state");
+
+					return s == null || s == "enabled"; // If not configured, we assumed enabled
+				});
+
+			return Observable
+				.CombineLatest(isClientEnabled, isAutomationEnabled, (c, a) => c & a)
 				.DistinctUntilChanged();
+		}
 
 		// TODO: Cache those
 		private string GetId(Automation automation) => _invalidChars.Replace(automation.Id, "_").ToLowerInvariant();

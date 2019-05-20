@@ -9,11 +9,11 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 	/// </summary>
 	public static class SceneExtensions
 	{
-		public static IDisposable Subscribe<T>(this IObservable<T> source, ISceneHost host, TimeSpan? retryDelay = null)
-		{
-			return source
-				.Retry(retryDelay ?? TimeSpan.FromSeconds(10), host.Scheduler)
-				.Subscribe();
-		}
+		//public static IDisposable Subscribe<T>(this IObservable<T> source, ISceneHost host, TimeSpan? retryDelay = null)
+		//{
+		//	return source
+		//		.Retry(retryDelay ?? Constants.DefaultRetryDelay, host.Scheduler)
+		//		.Subscribe();
+		//}
 	}
 }

@@ -23,14 +23,19 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		}
 
 		public HomeDevice<ExpandoObject> GetDevice(string deviceId)
-			=> GetOrCreate(deviceId).AsDynamic();
+			=> GetOrCreate(deviceId).As(Device.Dynamic);
 
 		public HomeDevice<TDevice> GetDevice<TDevice>(string deviceId)
 			where TDevice : IDeviceAdapter, new()
-			=> GetOrCreate(deviceId).As<TDevice>();
+			=> GetOrCreate(deviceId).As(Device.Generic<TDevice>);
+
+		public HomeDevice<TDevice> GetDevice<TDevice>(string deviceId, Func<DeviceState, TDevice> deviceFactory)
+			=> GetOrCreate(deviceId).As(deviceFactory);
 
 		private Device GetOrCreate(string deviceId)
 		{
+			// As we use 'devices == null' to check the dispose state, we cannot use:
+			// ImmutableInterlocked.GetOrAdd(ref _devices, deviceId, (id, host) => new Device(id, host), _host);
 			var newDevice = default(Device);
 			while (true)
 			{
@@ -59,12 +64,25 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 		/// <inheritdoc />
 		public void Dispose()
-			=> Interlocked.Exchange(ref _devices, null)?.Values.DisposeAllOrLog("Failed to dispoe a device");
+			=> Interlocked.Exchange(ref _devices, null)?.Values.DisposeAllOrLog("Failed to dispose a device");
 
 		private class Device : IDisposable, IDevice
 		{
+			public static TDevice Generic<TDevice>(DeviceState state)
+				where TDevice : IDeviceAdapter, new()
+			{
+				var device = new TDevice();
+				device.Init(state);
+				return device;
+			}
+
+			public static ExpandoObject Dynamic(DeviceState state)
+				=> state.ToDynamic();
+
+
+			private readonly IDeviceHost _host;
 			private readonly IScheduler _scheduler;
-			private readonly IObservable<ExpandoObject> _source;
+			private readonly IObservable<DeviceState> _source;
 
 			private ImmutableDictionary<Type, IDisposable> _casts = ImmutableDictionary<Type, IDisposable>.Empty;
 
@@ -73,55 +91,22 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 			public Device(string id, IDeviceHost host)
 			{
+				_host = host;
 				Id = id;
 				_scheduler = host.Scheduler;
 				_source = host
 					.GetAndObserveState(this)
-					.Select(changes =>
-					{
-						// Clone it to an expendo object
-						var device = new ExpandoObject();
-						var deviceValues = device as IDictionary<string, object>;
-						foreach (var property in changes.Properties)
-						{
-							deviceValues[property.Key] = property.Value;
-						}
-
-						return device;
-					})
-					.Retry(TimeSpan.FromSeconds(10), _scheduler)
+					.Retry(Constants.DefaultRetryDelay, _scheduler)
 					.Publish()
 					.RefCount();
 			}
 
-			public HomeDevice<ExpandoObject> AsDynamic()
+			public HomeDevice<TDevice> As<TDevice>(Func<DeviceState, TDevice> factory)
 			{
-				return (HomeDevice<ExpandoObject>)ImmutableInterlocked.GetOrAdd(ref _casts, typeof(ExpandoObject), Create);
+				return (HomeDevice<TDevice>)ImmutableInterlocked.GetOrAdd(ref _casts, typeof(TDevice), Create, factory);
 
-				IDisposable Create(Type _)
-				{
-					return new HomeDevice<ExpandoObject>(Id, _source);
-				}
-			}
-
-			public HomeDevice<TDevice> As<TDevice>()
-				where TDevice : IDeviceAdapter, new()
-			{
-				return (HomeDevice<TDevice>) ImmutableInterlocked.GetOrAdd(ref _casts, typeof(TDevice), Create);
-
-				IDisposable Create(Type _)
-				{
-					var src = _source
-						.Select(values =>
-						{
-							var device = new TDevice();
-							device.Init(Id, values);
-							return device;
-						})
-						.Retry(TimeSpan.FromSeconds(10), _scheduler);
-
-					return new HomeDevice<TDevice>(Id, src);
-				}
+				IDisposable Create(Type _, Func<DeviceState, TDevice> f) 
+					=> new HomeDevice<TDevice>(_host, Id, _source, f, _scheduler);
 			}
 
 			/// <inheritdoc />

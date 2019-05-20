@@ -34,16 +34,43 @@ namespace SmartHomeDotNet.Mqtt
 			MqttBrokerConfig broker,
 			IScheduler messagesScheduler,
 			params string[] autoSubscribeRootTopics)
+			: this(broker, null, messagesScheduler, autoSubscribeRootTopics)
+		{
+		}
+
+		public MqttClient(
+			MqttBrokerConfig broker,
+			bool? isTestEnvironment,
+			IScheduler messagesScheduler,
+			params string[] autoSubscribeRootTopics)
 		{
 			_broker = broker;
 			_scheduler = messagesScheduler;
 			_rootTopics = autoSubscribeRootTopics;
+
+#if DEBUG
+			IsTestEnvironment = isTestEnvironment ?? true;
+#else
+			IsTestEnvironment = isTestEnvironment ?? Debugger.IsAttached;
+#endif
 		}
 
 		/// <summary>
 		/// Gets the availability topic of this client
 		/// </summary>
 		public string AvailabilityTopic => _broker.ClientStatusTopic;
+
+		internal bool IsTestEnvironment { get; }
+		/*
+		/// <summary>
+		/// Gets an observable sequence which indicates if the client is enabled or not.
+		/// </summary>
+		/// <remarks>This will become 'false' if another client goes 'online' on topic "<see cref="AvailabilityTopic"/>_DEBUG"</remarks>
+		/// <returns></returns>
+		public IObservable<bool> GetAndObserveIsEnabled()
+			=> ObserveEvent(AvailabilityTopic + "_DEBUG").Select(value => topic.Value != "online");
+		*/
+		internal IObservable<bool> GetAndObserveIsEnabled() => Observable.Return(true, Scheduler.Immediate);
 
 		/// <summary>
 		/// Gets an observable sequence of the state of a topic
@@ -65,12 +92,19 @@ namespace SmartHomeDotNet.Mqtt
 					Enable();
 
 					var mqttTopic = await _connection.Subscribe(ct, topic);
-
-					return mqttTopic
-						.ObserveUpdates()
-						.StartWith(Scheduler.Immediate, default((MqttTopic, string)))
-						.Select(_ => mqttTopic.ToImmutable())
-						.DistinctUntilChanged();
+					if (mqttTopic.HasValue)
+					{
+						return mqttTopic
+							.ObserveUpdates()
+							.StartWith(Scheduler.Immediate, default((MqttTopic topic, string value)))
+							.Select(changed => mqttTopic.ToImmutable(changed.topic, changed.value));
+					}
+					else
+					{
+						return mqttTopic
+							.ObserveUpdates()
+							.Select(changed => mqttTopic.ToImmutable(changed.topic, changed.value));
+					}
 				})
 				.Finally(Release);
 		}
@@ -86,7 +120,7 @@ namespace SmartHomeDotNet.Mqtt
 			{
 				throw new ArgumentOutOfRangeException(
 					nameof(topic),
-					$"The device id '{topic}' must be fully qualified (i.e. you cannot use wilcards).");
+					$"The device id '{topic}' must be fully qualified (i.e. you cannot use wildcards).");
 			}
 
 			return Observable
@@ -185,7 +219,7 @@ namespace SmartHomeDotNet.Mqtt
 					cleanSession: true,
 					keepAlivePeriod: (ushort)(Debugger.IsAttached ? 300 : 10));
 
-				// Birth messsage
+				// Birth message
 				_client.Publish(
 					owner._broker.ClientStatusTopic,
 					Encoding.UTF8.GetBytes("online"),
@@ -254,8 +288,8 @@ namespace SmartHomeDotNet.Mqtt
 				}
 
 				// Even if we are already subscribed to "rootTopic/#", it's common to not receive all 
-				// retained messages at startup (at least avec Mosquitto with M2MQTT).
-				// So we sepecifically subscribe to the oberved topic.
+				// retained messages at startup (at least with Mosquitto with M2MQTT).
+				// So we specifically subscribe to the observed topic.
 				this.Log().Info("Subscribing to topic: " + topic);
 
 				_client.Subscribe(

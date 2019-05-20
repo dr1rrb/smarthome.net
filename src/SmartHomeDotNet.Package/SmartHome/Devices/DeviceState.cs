@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Dynamic;
 using System.Linq;
 
 namespace SmartHomeDotNet.SmartHome.Devices
@@ -9,10 +11,17 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	/// </summary>
 	public class DeviceState
 	{
-		public DeviceState(string deviceId, ImmutableDictionary<string, string> properties)
+		/// <summary>
+		/// Creates a new instance
+		/// </summary>
+		/// <param name="deviceId">Id of the device</param>
+		/// <param name="properties">The properties of the device</param>
+		/// <param name="isPersistedState">A boolean which indicates if this device state is a transient state (e.g. button pressed), or not</param>
+		public DeviceState(string deviceId, ImmutableDictionary<string, string> properties, bool isPersistedState)
 		{
 			DeviceId = deviceId;
 			Properties = properties;
+			IsPersistedState = isPersistedState;
 		}
 
 		/// <summary>
@@ -24,5 +33,23 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// Set of all properties of this device
 		/// </summary>
 		public ImmutableDictionary<string, string> Properties { get; }
+
+		/// <summary>
+		/// Get a boolean which indicates if this device state is a transient state (e.g. button pressed), or not.
+		/// </summary>
+		public bool IsPersistedState { get; }
+
+		internal ExpandoObject ToDynamic()
+		{
+			// Clone it to an expando object
+			var device = new ExpandoObject();
+			var deviceValues = device as IDictionary<string, object>;
+			foreach (var property in Properties)
+			{
+				deviceValues[property.Key] = property.Value;
+			}
+
+			return device;
+		}
 	}
 }
