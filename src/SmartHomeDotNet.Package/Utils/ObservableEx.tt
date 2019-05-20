@@ -1,0 +1,256 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".g.cs" #>
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
+using System.Threading;
+
+namespace SmartHomeDotNet.Utils
+{
+	public static class ObservableEx
+	{
+<# 
+	for(var i = 2; i < 16; i ++)
+	{
+		var types = Repeat("T{0}", ", ");
+		
+		string Repeat(string pattern, string separator = "\r\n")
+			=> string.Join(separator, Enumerable.Range(0, i - 1).Select(j => string.Format(pattern, j)));
+#>
+		public struct CombineTuple<<#= types #>>
+		{
+			<#= Repeat(@"private T{0} _item{0};") #>
+
+			internal static bool TryCreate(int changedIndex, object changedSource, <#= Repeat("Option<T{0}> value{0}", ", ") #>, out CombineTuple<<#= types #>> result)
+			{
+				result = new CombineTuple<<#= types #>>();
+				result.ChangedIndex = changedIndex;
+				result.ChangedSource = changedSource;
+
+				return <#= Repeat(@"
+					value{0}.MatchSome(out result._item{0})", " && ") #>;
+			}
+
+			/// <summary>
+			/// Gets the 0-based index of the source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public int ChangedIndex { get; private set; }
+
+			/// <summary>
+			/// The source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public object ChangedSource { get; private set; }
+
+			/// <summary>
+			/// The last value poduced by the source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public object ChangedValue
+			{
+				get
+				{
+					switch(ChangedIndex)
+					{
+						<#= Repeat("case {0}: return _item{0};") #>
+
+						default:
+							throw new ArgumentOutOfRangeException(nameof(ChangedIndex));
+					}
+				}
+			}
+
+			<#= Repeat(@"
+			/// <summary>
+			/// The last value produced the {0} observable sequence
+			/// </summary>
+			public T{0} Item{0} => _item{0};") #>
+
+			/// <summary>
+			/// Deconstructs this tuple into multiple variables
+			/// </summary>
+			<#= Repeat(@"
+			/// <param name=""item{0}"">Output variable {0}</param>", "") #>
+			public void Deconstruct(<#= Repeat("out T{0} item{0}", ",") #>)
+			{
+				<#= Repeat(@"
+				item{0} = _item{0};", "") #>
+			}
+		}
+
+		/// <summary>
+		/// Combines the latest values of <#= i #> observables sequences
+		/// </summary>
+		<#= Repeat(@"
+		/// <param name=""obs{0}"">The observable sequence {0}</param>", "") #>
+		public static IObservable<CombineTuple<<#= types #>>> CombineLatest<<#= types #>>(<#= Repeat("IObservable<T{0}> obs{0}", ", ") #>)
+		{
+			return Observable.Create<CombineTuple<<#= types #>>>(observer =>
+			{
+				var subscriptions = new CompositeDisposable(<#= i #>);
+				var nextGate = new object();
+				var running = <#= i #>;
+				<#= Repeat("var value{0} = default(Option<T{0}>);") #>;
+
+				<#= Repeat(@"
+				obs{0}
+					.Subscribe(
+						v{0} =>
+						{{
+							value{0} = v{0};
+							OnNext({0}, obs{0});
+						}},
+						observer.OnError,
+						OnComplete)
+					.DisposeWith(subscriptions);
+				") #>
+
+				return subscriptions;
+
+				void OnNext(int changedIndex, object changedSource)
+				{
+					if (CombineTuple<<#= types #>>.TryCreate(changedIndex, changedSource, <#= Repeat("value{0}", ", ") #>, out var tuple))
+					{
+						lock (nextGate)
+						{
+							observer.OnNext(tuple);
+						}
+					}
+				}
+
+				void OnComplete()
+				{
+					if (Interlocked.Decrement(ref running) <= 0)
+					{
+						observer.OnCompleted();
+					}
+				}
+			});
+		}
+
+		public struct IdentifiedCombineTuple<TSourceId, <#= types #>>
+		{
+			<#= Repeat(@"private T{0} _item{0};") #>
+
+			internal static bool TryCreate(TSourceId changedId, int changedIndex, object changedSource, <#= Repeat("Option<T{0}> value{0}", ", ") #>, out IdentifiedCombineTuple<TSourceId, <#= types #>> result)
+			{
+				result = new IdentifiedCombineTuple<TSourceId, <#= types #>>();
+				result.ChangedId = changedId;
+				result.ChangedIndex = changedIndex;
+				result.ChangedSource = changedSource;
+
+				return <#= Repeat(@"
+					value{0}.MatchSome(out result._item{0})", " && ") #>;
+			}
+
+			/// <summary>
+			/// Gets identifier of the source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public TSourceId ChangedId { get; private set; }
+
+			/// <summary>
+			/// Gets the 0-based index of the source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public int ChangedIndex { get; private set; }
+
+			/// <summary>
+			/// The source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public object ChangedSource { get; private set; }
+
+			/// <summary>
+			/// The last value poduced by the source observable sequence which caused this value to be published in the result observable sequence
+			/// </summary>
+			public object ChangedValue
+			{
+				get
+				{
+					switch(ChangedIndex)
+					{
+						<#= Repeat("case {0}: return _item{0};") #>
+
+						default:
+							throw new ArgumentOutOfRangeException(nameof(ChangedIndex));
+					}
+				}
+			}
+
+			<#= Repeat(@"
+			/// <summary>
+			/// The last value produced the {0} observable sequence
+			/// </summary>
+			public T{0} Item{0} => _item{0};") #>
+
+			/// <summary>
+			/// Deconstructs this tuple into multiple variables
+			/// </summary>
+			<#= Repeat(@"
+			/// <param name=""item{0}"">Output variable {0}</param>", "") #>
+			public void Deconstruct(<#= Repeat("out T{0} item{0}", ",") #>)
+			{
+				<#= Repeat(@"
+				item{0} = _item{0};", "") #>
+			}
+		}
+
+		/// <summary>
+		/// Combines the latest values of <#= i #> observables sequences
+		/// </summary>
+		<#= Repeat(@"
+		/// <param name=""src{0}"">The observable sequence {0}</param>", "") #>
+		public static IObservable<IdentifiedCombineTuple<TSourceId, <#= types #>>> CombineLatest<TSourceId, <#= types #>>(<#= Repeat(@"
+			(TSourceId id, IObservable<T{0}> observable) src{0}", ", ") #>)
+		{
+			return Observable.Create<IdentifiedCombineTuple<TSourceId, <#= types #>>>(observer =>
+			{
+				var subscriptions = new CompositeDisposable(<#= i #>);
+				var nextGate = new object();
+				var running = <#= i #>;
+				<#= Repeat("var value{0} = default(Option<T{0}>);") #>;
+
+				<#= Repeat(@"
+				src{0}
+					.observable
+					.Subscribe(
+						v{0} =>
+						{{
+							value{0} = v{0};
+							OnNext(src{0}.id, {0}, src{0}.observable);
+						}},
+						observer.OnError,
+						OnComplete)
+					.DisposeWith(subscriptions);
+				") #>
+
+				return subscriptions;
+
+				void OnNext(TSourceId changedId, int changedIndex, object changedSource)
+				{
+					if (IdentifiedCombineTuple<TSourceId, <#= types #>>.TryCreate(changedId, changedIndex, changedSource, <#= Repeat("value{0}", ", ") #>, out var tuple))
+					{
+						lock (nextGate)
+						{
+							observer.OnNext(tuple);
+						}
+					}
+				}
+
+				void OnComplete()
+				{
+					if (Interlocked.Decrement(ref running) <= 0)
+					{
+						observer.OnCompleted();
+					}
+				}
+			});
+		}
+
+
+<# } // for #>
+	}
+}
