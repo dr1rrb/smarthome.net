@@ -15,6 +15,13 @@ variables:
 steps:
 - script: dotnet build --configuration $(buildConfiguration) src/SmartHomeDotNet.sln
   displayName: 'dotnet build $(buildConfiguration)'
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: 'src/SmartHomeDotNet.Package/bin/$(buildConfiguration)'
+    Contents: '**'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/Package'
+
 - task: NuGetCommand@2
   inputs:
     command: 'push'
