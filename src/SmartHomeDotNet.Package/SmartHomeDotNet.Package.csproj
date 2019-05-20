@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>SmartHomeDotNet</AssemblyName>
     <RootNamespace>SmartHomeDotNet</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Dr1rrb</Authors>
     <PackageId>smarthomedotnet</PackageId>
     <PackageProjectUrl>https://github.com/dr1rrb/smarthome.net</PackageProjectUrl>
