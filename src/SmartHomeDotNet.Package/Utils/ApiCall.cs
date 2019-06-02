@@ -156,20 +156,20 @@ namespace SmartHomeDotNet.Utils
 			_duration = duration;
 			_abort = abort;
 
-			Init(Run(Token));
+			Init(Run());
 		}
 
-		private async Task Run(CancellationToken ct)
+		private async Task Run()
 		{
 			await _start;
 
 			try
 			{
-				await Task.Delay(_duration, ct);
+				await Task.Delay(_duration, Token);
 			}
 			catch (OperationCanceledException) when (_abort != null)
 			{
-				_abort?.Invoke();
+				_abort().UnlinkFromAsyncContext();
 
 				throw;
 			}

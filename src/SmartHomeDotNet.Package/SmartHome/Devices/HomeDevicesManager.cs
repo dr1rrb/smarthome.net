@@ -111,7 +111,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 			/// <inheritdoc />
 			public void Dispose()
-				=> Interlocked.Exchange(ref _casts, null)?.Values.DisposeAllOrLog("Failed to dispoe a casted device");
+				=> Interlocked.Exchange(ref _casts, null)?.Values.DisposeAllOrLog("Failed to dispose a casted device");
 		}
 	}
 }

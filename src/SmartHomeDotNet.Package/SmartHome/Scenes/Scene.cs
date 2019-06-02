@@ -37,6 +37,7 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 			AbortPending,
 
 			// AttachToPending
+			// AttachToPendingWithCancellationToken
 		}
 
 		/// <summary>
@@ -126,8 +127,8 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 					return;
 				}
 
-				// Set _isRunning prior to abort pending, so there is not flicker of 'IsRunning'
-				// Note: we use a int as at this point we alrdeay have a running instance which will be aborted below
+				// Set _isRunning prior to abort pending, so there is no flicker of 'IsRunning'
+				// Note: we use a int as at this point we already have a running instance which will be aborted below
 				Interlocked.Increment(ref _isRunning);
 
 				using (var ctx = new AsyncContext(ct, Scheduler))
@@ -146,8 +147,10 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 				// We cannot abort the completion publication
 				ct = CancellationToken.None;
 
-				await _host.SetIsRunning(ct, this, false);
-				Interlocked.Decrement(ref _isRunning);
+				if (Interlocked.Decrement(ref _isRunning) == 0)
+				{
+					await _host.SetIsRunning(ct, this, false);
+				}
 			}
 		}
 

@@ -17,7 +17,14 @@ namespace SmartHomeDotNet
 	/// <remarks>It recommended to not directly inherit from this, you should prefer to use the generic version <see cref="HomeBase{THome}"/> instead.</remarks>
 	public abstract class HomeBase : IActivable, IDisposable
 	{
-		private int _isEnabled = 0;
+		private static class States
+		{
+			public const int New = 0;
+			public const int Enabled = 1;
+			public const int Disposed = int.MaxValue;
+		}
+
+		private int _state = States.New;
 
 		public HomeBase(IScheduler defaultScheduler = null)
 		{
@@ -29,7 +36,7 @@ namespace SmartHomeDotNet
 
 		public void MakeItSmart()
 		{
-			if (Interlocked.CompareExchange(ref _isEnabled, 1, 0) != 0)
+			if (Interlocked.CompareExchange(ref _state, States.Enabled, States.New) != States.New)
 			{
 				return;
 			}
@@ -108,6 +115,10 @@ namespace SmartHomeDotNet
 		}
 
 		/// <inheritdoc />
-		public void Dispose() => Subscriptions.Dispose();
+		public void Dispose()
+		{
+			_state = States.Disposed;
+			Subscriptions.Dispose();
+		}
 	}
 }
