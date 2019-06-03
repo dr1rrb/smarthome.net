@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Mqtt;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -12,8 +13,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.SmartHome.Devices;
-using uPLibrary.Networking.M2Mqtt;
-using uPLibrary.Networking.M2Mqtt.Messages;
 
 namespace SmartHomeDotNet.Mqtt
 {
@@ -26,7 +25,7 @@ namespace SmartHomeDotNet.Mqtt
 		private readonly IScheduler _scheduler;
 		private readonly string[] _rootTopics;
 
-		private readonly object _connectionGate = new object();
+		private readonly Utils.AsyncLock _connectionGate = new Utils.AsyncLock();
 		private Connection _connection;
 		private int _connectionClients = 0;
 
@@ -89,7 +88,7 @@ namespace SmartHomeDotNet.Mqtt
 			return Observable
 				.DeferAsync(async ct =>
 				{
-					Enable();
+					await Enable(ct);
 
 					var mqttTopic = await _connection.Subscribe(ct, topic);
 					if (mqttTopic.HasValue)
@@ -106,7 +105,7 @@ namespace SmartHomeDotNet.Mqtt
 							.Select(changed => mqttTopic.ToImmutable(changed.topic, changed.value));
 					}
 				})
-				.Finally(Release);
+				.Finally(() => _scheduler.ScheduleAsync((_, ct) => Release(ct)));
 		}
 
 		/// <summary>
@@ -126,7 +125,7 @@ namespace SmartHomeDotNet.Mqtt
 			return Observable
 				.DeferAsync(async ct =>
 				{
-					Enable();
+					await Enable(ct);
 
 					var mqttTopic = await _connection.Subscribe(ct, topic, QualityOfService.ExcatlyOnce);
 
@@ -134,7 +133,7 @@ namespace SmartHomeDotNet.Mqtt
 						.ObserveUpdates()
 						.Select(update => update.value);
 				})
-				.Finally(Release);
+				.Finally(() => _scheduler.ScheduleAsync((_, ct) => Release(ct)));
 		}
 
 		/// <summary>
@@ -150,36 +149,37 @@ namespace SmartHomeDotNet.Mqtt
 		{
 			try
 			{
-				Enable();
+				await Enable(ct);
 
 				await _connection.Publish(ct, topic, value);
 			}
 			finally
 			{
-				Release();
+				await Release(ct);
 			}
 		}
 
-		private void Enable()
+		private async Task Enable(CancellationToken ct)
 		{
-			lock (_connectionGate)
+			using (await _connectionGate.LockAsync(ct))
 			{
 				if (++_connectionClients == 1)
 				{
-					_connection = new Connection(this);
+					ct = CancellationToken.None;
+					_connection = await Connection.Create(ct, this);
 				}
 			}
 		}
 
-		private void Release()
+		private async Task Release(CancellationToken ct)
 		{
-			lock (_connectionGate)
+			using (await _connectionGate.LockAsync(ct))
 			{
 				if (--_connectionClients == 0)
 				{
 					var connection = _connection;
 					_connection = null;
-					connection.Dispose();
+					await connection.DisposeAsync(ct);
 				}
 			}
 		}
@@ -188,17 +188,37 @@ namespace SmartHomeDotNet.Mqtt
 		{
 			private readonly CompositeDisposable _subscriptions = new CompositeDisposable(2);
 
-			private readonly uPLibrary.Networking.M2Mqtt.MqttClient _client;
-			private readonly MqttCache _topics;
-			private readonly IObservable<(bool hasUpdated, MqttTopic updated)> _messages;
-			private readonly Task _isReady;
-			private readonly IScheduler _scheduler;
+			private System.Net.Mqtt.IMqttClient _client;
+			private MqttCache _topics;
+			private IObservable<(bool hasUpdated, MqttTopic updated)> _messages;
+			private Task _isReady;
+			private IScheduler _scheduler;
 
-			public Connection(MqttClient owner)
+			public static async Task<Connection> Create(CancellationToken ct, MqttClient owner)
 			{
+				var connection = new Connection();
+				await connection.AsyncCtor(owner);
+				return connection;
+			}
+
+			private Connection()
+			{
+			}
+
+			private async Task AsyncCtor(MqttClient owner)
+			{
+				var config = new MqttConfiguration
+				{
+					Port = owner._broker.Port,
+					MaximumQualityOfService = MqttQualityOfService.ExactlyOnce,
+					KeepAliveSecs = (ushort)(Debugger.IsAttached ? 300 : 10)
+				};
+				var creds = new MqttClientCredentials(owner._broker.ClientId, owner._broker.Username, owner._broker.Password);
+				var will = new MqttLastWill(owner._broker.ClientStatusTopic, MqttQualityOfService.AtLeastOnce, true, Encoding.UTF8.GetBytes("offline"));
+
 				_scheduler = owner._scheduler;
 				_topics = new MqttCache();
-				_client = new uPLibrary.Networking.M2Mqtt.MqttClient(owner._broker.Host, owner._broker.Port, false, null, null, MqttSslProtocols.None);
+				_client = await System.Net.Mqtt.MqttClient.CreateAsync(owner._broker.Host, config);
 
 				var messages = CreateMessagesObservable();
 				_messages = messages;
@@ -207,72 +227,67 @@ namespace SmartHomeDotNet.Mqtt
 				_subscriptions.Add(messages.Connect());
 
 				// Connect to broker
-				_client.Connect(
-					owner._broker.ClientId,
-					owner._broker.Username,
-					owner._broker.Password,
-					willRetain: true,
-					willQosLevel: (byte)QualityOfService.AtLeastOnce,
-					willFlag: true,
-					willTopic: owner._broker.ClientStatusTopic,
-					willMessage: "offline",
-					cleanSession: true,
-					keepAlivePeriod: (ushort)(Debugger.IsAttached ? 300 : 10));
+				await _client.ConnectAsync(creds, will, cleanSession: true);
 
 				// Birth message
-				_client.Publish(
-					owner._broker.ClientStatusTopic,
-					Encoding.UTF8.GetBytes("online"),
-					(byte)QualityOfService.AtLeastOnce,
-					retain: true);
+				var birth = new MqttApplicationMessage(owner._broker.ClientStatusTopic, Encoding.UTF8.GetBytes("online"));
+				await _client.PublishAsync(birth, MqttQualityOfService.AtLeastOnce, retain: true);
 
 				// Start discovery
-				_client.Subscribe(
-					owner._rootTopics.Select(t => t.Trim('#', '/') + "/#").ToArray(),
-					Enumerable.Repeat((byte)QualityOfService.AtLeastOnce, owner._rootTopics.Length).ToArray());
+				await Task.WhenAll(owner._rootTopics.Select(t => t.Trim('#', '/') + "/#").Select(topic => _client.SubscribeAsync(topic, MqttQualityOfService.AtLeastOnce)));
 
 				_subscriptions.Add(Disposable.Create(() =>
 				{
 					if (_client.IsConnected)
 					{
-						_client.Disconnect();
+						_client.DisconnectAsync().ContinueWith(_ => _client.Dispose());
+					}
+					else
+					{
+						_client.Dispose();
 					}
 				}));
 
 				var wildchars = new[] {'+'};
-				var rootTopicsAreReady = owner
-					._rootTopics
-					.Select(t =>
-					{
-						var name = t.Split(wildchars, 2, StringSplitOptions.RemoveEmptyEntries)[0].Trim('#', '/');
-						var topic = _topics.Get(name);
-						var isReady = IsReady(CancellationToken.None, topic);
+				if (owner._rootTopics.Any())
+				{
+					var rootTopicsAreReady = owner
+						._rootTopics
+						.Select(t => t.Split(wildchars, 2, StringSplitOptions.RemoveEmptyEntries)[0].Trim('#', '/'))
+						.Distinct()
+						.Select(t =>
+						{
+							var topic = _topics.Get(t);
+							var isReady = IsReady(CancellationToken.None, topic);
 
-						return isReady;
-					});
-				_isReady = Task.WhenAll(rootTopicsAreReady);
+							return isReady;
+						});
+					_isReady = Task.WhenAll(rootTopicsAreReady);
+				}
+				else
+				{
+					//_isReady = Task.Delay(TimeSpan.FromMilliseconds(100));
+					_isReady = Task.CompletedTask;
+				}
 			}
 
 			private IConnectableObservable<(bool, MqttTopic)> CreateMessagesObservable()
 			{
 				var closed = Observable
-					.FromEventPattern<uPLibrary.Networking.M2Mqtt.MqttClient.ConnectionClosedEventHandler, EventArgs>(
-						h => _client.ConnectionClosed += h,
-						h => _client.ConnectionClosed -= h,
+					.FromEventPattern<MqttEndpointDisconnected>(
+						h => _client.Disconnected += h,
+						h => _client.Disconnected -= h,
 						_scheduler)
 					.Select(_ => Notification.CreateOnError<(bool, MqttTopic)>(new InvalidOperationException("Connection closed")))
 					.Dematerialize();
 
-				var received = Observable
-					.FromEventPattern<uPLibrary.Networking.M2Mqtt.MqttClient.MqttMsgPublishEventHandler, MqttMsgPublishEventArgs>(
-						h => _client.MqttMsgPublishReceived += h,
-						h => _client.MqttMsgPublishReceived -= h,
-						_scheduler)
+				var received = _client
+					.MessageStream
 					.ObserveOn(_scheduler)
 					.Select(message => _topics.TryUpdate(
-						message.EventArgs.Topic,
-						Encoding.UTF8.GetString(message.EventArgs.Message),
-						message.EventArgs.Retain));
+						message.Topic,
+						Encoding.UTF8.GetString(message.Payload),
+						/* TODO XAMARIN: message.Retain */ true));
 
 				return received.Merge(closed).Publish();
 			}
@@ -292,9 +307,7 @@ namespace SmartHomeDotNet.Mqtt
 				// So we specifically subscribe to the observed topic.
 				this.Log().Info("Subscribing to topic: " + topic);
 
-				_client.Subscribe(
-					new[] { topic + "/#" },
-					new[] { (byte)qos });
+				await _client.SubscribeAsync(topic + "/#", (MqttQualityOfService) qos);
 
 				var mqttTopic = _topics.Get(topic);
 
@@ -314,7 +327,8 @@ namespace SmartHomeDotNet.Mqtt
 
 				this.Log().Info($"Publishing '{value}' to topic '{topic}'.");
 
-				_client.Publish(topic, Encoding.UTF8.GetBytes(value), (byte) qos, retain);
+				// TODO
+				// await _client.PublishAsync(new MqttApplicationMessage(topic, Encoding.UTF8.GetBytes(value)), (MqttQualityOfService) qos, retain);
 				_topics.TryUpdate(topic, value, retain);
 			}
 
@@ -328,6 +342,12 @@ namespace SmartHomeDotNet.Mqtt
 					.Select(_ => default((MqttTopic, string)));
 
 				await notUpdatedSinceAFew.Amb(timeout).FirstAsync().ToTask(ct);
+			}
+
+			public async Task DisposeAsync(CancellationToken ct)
+			{
+				await _client.DisconnectAsync();
+				Dispose();
 			}
 
 			/// <inheritdoc />
