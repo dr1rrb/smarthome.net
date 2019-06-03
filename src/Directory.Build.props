@@ -1,0 +1,14 @@
+<Project ToolsVersion="15.0">
+
+	<Import Project="$(SolutionDir)\build_overrides.props" Condition="exists('$(SolutionDir)\build_overrides.props')" />
+
+	<PropertyGroup>
+		<Version>0.2.0</Version>
+		<Authors>Dr1rrb</Authors>
+		<PackageProjectUrl>https://github.com/dr1rrb/smarthome.net</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/dr1rrb/smarthome.net</RepositoryUrl>
+		<PackageTags>iot home-assistant hass mqtt zigbee</PackageTags>
+		<NeutralLanguage>en-US</NeutralLanguage>
+	</PropertyGroup>
+	
+</Project>
