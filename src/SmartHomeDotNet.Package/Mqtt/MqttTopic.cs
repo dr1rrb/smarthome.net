@@ -97,7 +97,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		public MqttTopicValues ToImmutable(MqttTopic changedTopic, string changedValue)
 		{
-			// For now, we support only top level values
+			// For now, we support only local and one child level of values
 
 			var localValue = _localValue;
 			var childrenValues = _children

@@ -13,7 +13,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	public class Device : IDeviceAdapter, IDevice
 	{
 		private DeviceState _state;
-		private dynamic _value;
+		private dynamic _raw;
 
 		/// <summary>
 		/// The Id of this device
@@ -23,7 +23,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// The raw source value of the device
 		/// </summary>
-		protected dynamic Raw => _value ?? (_value = GetState().ToDynamic());
+		protected dynamic Raw => _raw ?? (_raw = GetState().ToDynamic());
 
 		/// <inheritdoc />
 		void IDeviceAdapter.Init(DeviceState state)
