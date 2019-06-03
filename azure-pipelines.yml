@@ -7,13 +7,17 @@ trigger:
 - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'windows-latest'
 
 variables:
   buildConfiguration: 'Release'
 
 steps:
-- script: dotnet build --configuration $(buildConfiguration) src/SmartHomeDotNet.sln
+- task: GitVersion@4
+  inputs:
+    updateAssemblyInfo: true
+
+- script: dotnet build --configuration $(buildConfiguration) -p:PackageVersion=$(GitVersion.FullSemVer) src/SmartHomeDotNet.sln
   displayName: 'dotnet build $(buildConfiguration)'
 
 - task: CopyFiles@2
@@ -21,12 +25,10 @@ steps:
     SourceFolder: 'src/SmartHomeDotNet.Package/bin/$(buildConfiguration)'
     Contents: '**'
     TargetFolder: '$(Build.ArtifactStagingDirectory)/Package'
-
-- task: NuGetCommand@2
+    
+- task: PublishBuildArtifacts@1
+  condition: always()
   inputs:
-    command: 'push'
-    feedsToUse: 'select'
-    packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
-    nuGetFeedType: 'external'
-    publishFeedCredentials: 'nuget-dr1rrb'
-    versioningScheme: 'off'
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'NugetPackages'
+    publishLocation: 'Container'
