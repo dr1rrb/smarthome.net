@@ -206,7 +206,7 @@ public class AutoVentilateBathroom2 : Automation<GeyksHome>
 			.Do(_ => Home.VentilateBathroom2.Start())
 			.SubscribeWithContext();
 }
-`` 
+```
 
 
 Another common case is to react to a device state changed.
@@ -276,3 +276,36 @@ public class BedroomButtonsActions : Automation<GeyksHome>
 	}
 }
 ```
+
+### Test your home
+It's **really easy** to debug your scene and automations!
+
+1. Create a new console application
+1. In you main, add the following:
+	```csharp
+	using System;
+
+	namespace GeykHome.LiveTests
+	{
+		class Program
+		{
+			static void Main(string[] args)
+			{
+				using (var home = new GeyksHome())
+				{
+					home.MakeItSmart();
+
+					Console.WriteLine("Press enter to exit.");
+					Console.ReadLine();
+				}
+			}
+		}
+	}
+	```
+1. And that's it! Hit `F5` and debug your rules and automation using the rich debugger of Visuaal studio!
+
+### Deploy
+You can deploy your application directly directly in a command line tool that you run on a device (Linux, Windows, etc.), 
+or even package it as a Docker container based on the `microsoft/dotnet:2.1-aspnetcore-runtime`
+
+_We are planning to develop an intergration using hass.io_
