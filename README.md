@@ -278,10 +278,10 @@ public class BedroomButtonsActions : Automation<GeyksHome>
 ```
 
 ### Test your home
-It's **really easy** to debug your scene and automations!
+It's **really easy** to debug your scenes and automations!
 
 1. Create a new console application
-1. In you main, add the following:
+1. In your main method, add the following:
 	```csharp
 	using System;
 
@@ -302,10 +302,13 @@ It's **really easy** to debug your scene and automations!
 		}
 	}
 	```
-1. And that's it! Hit `F5` and debug your rules and automation using the rich debugger of Visuaal studio!
+1. And that's it! Hit `F5` and start debug your smart home using real devices and the rich debugger of Visuaal studio!
+
+Note: If you already have a running instance of _smarthhome.net_, you have to manually stop it before starting debug,
+otherwise both instances will react to device triggers, which may result into strange behaviors!
 
 ### Deploy
 You can deploy your application directly directly in a command line tool that you run on a device (Linux, Windows, etc.), 
 or even package it as a Docker container based on the `microsoft/dotnet:2.1-aspnetcore-runtime`
 
-_We are planning to develop an intergration using hass.io_
+_We are planning to develop an integration using hass.io_
