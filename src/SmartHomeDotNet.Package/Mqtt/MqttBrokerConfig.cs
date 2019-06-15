@@ -15,7 +15,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		public string Password { get; set; }
 
-		public string ClientId { get; set; } = Environment.MachineName + "_HomeAutomationEngine";
+		public string ClientId { get; set; } = Environment.MachineName + "HomeAutomationEngine";
 
 		public string ClientStatusTopic { get; set; } = "homeautomationengine/status";
 

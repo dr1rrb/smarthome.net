@@ -5,7 +5,7 @@ using System.Linq;
 namespace SmartHomeDotNet.Mqtt
 {
 	/// <summary>
-	/// An immutable snapshot of values of a MQTT topic
+	/// An immutable snapshot of the values of a MQTT topic and its **first** level of sub topics
 	/// </summary>
 	public class MqttTopicValues : IEquatable<MqttTopicValues>
 	{
@@ -23,6 +23,9 @@ namespace SmartHomeDotNet.Mqtt
 			IsRetainedState = isRetainedState;
 		}
 
+		/// <summary>
+		/// Indicates if any value of this topics or its sub topic was retained
+		/// </summary>
 		public bool IsRetainedState { get; set; }
 
 		/// <summary>
@@ -36,7 +39,7 @@ namespace SmartHomeDotNet.Mqtt
 		public string Value { get; }
 
 		/// <summary>
-		/// The current values of the topic
+		/// The current values of the sub topics
 		/// </summary>
 		public ImmutableDictionary<string, string> Values { get; }
 

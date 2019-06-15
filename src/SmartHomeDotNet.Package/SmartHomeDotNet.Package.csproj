@@ -3,30 +3,22 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>SmartHomeDotNet</AssemblyName>
-    <RootNamespace>SmartHomeDotNet</RootNamespace>
-    <Version>0.2.0</Version>
-    <Authors>Dr1rrb</Authors>
-    <PackageId>smarthomedotnet</PackageId>
-    <PackageProjectUrl>https://github.com/dr1rrb/smarthome.net</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/dr1rrb/smarthome.net</RepositoryUrl>
-    <PackageTags>iot home-assistant hass mqtt zigbee</PackageTags>
-    <NeutralLanguage>en-US</NeutralLanguage>
-  </PropertyGroup>
-
-  <PropertyGroup>
+	<RootNamespace>SmartHomeDotNet</RootNamespace>
+	<PackageId>smarthomedotnet</PackageId>
 	<GeneratePackageOnBuild Condition="$(Configuration)=='Release'">true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="M2Mqtt" Version="4.3.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.5.0" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="System.Collections.Immutable" Version="1.5.0" />
     <PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
-		<PackageReference Include="System.Reactive" Version="4.1.2" />
+    <PackageReference Include="dr1rrb.System.Net.Mqtt" Version="0.5.50-beta" />
+	<PackageReference Include="System.Reactive" Version="4.1.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="_ThirdParties\Hass\Discovery\" />
     <Folder Include="_ThirdParties\Xiaomi\" />
   </ItemGroup>
 

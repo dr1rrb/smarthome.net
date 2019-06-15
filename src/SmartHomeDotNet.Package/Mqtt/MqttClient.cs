@@ -1,34 +1,39 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Mqtt;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.SmartHome.Devices;
-using uPLibrary.Networking.M2Mqtt;
-using uPLibrary.Networking.M2Mqtt.Messages;
+using SmartHomeDotNet.Utils;
+using AsyncLock = SmartHomeDotNet.Utils.AsyncLock;
 
 namespace SmartHomeDotNet.Mqtt
 {
 	/// <summary>
 	/// A <see cref="IDeviceHost"/> which uses the MQTT protocol to get updates
 	/// </summary>
-	public sealed class MqttClient
+	public sealed class MqttClient : IDisposable
 	{
 		private readonly MqttBrokerConfig _broker;
 		private readonly IScheduler _scheduler;
 		private readonly string[] _rootTopics;
 
-		private readonly object _connectionGate = new object();
-		private Connection _connection;
+		private readonly Utils.AsyncLock _connectionGate = new Utils.AsyncLock();
+		//private Connection _connection;
 		private int _connectionClients = 0;
+		private Connection _subscription;
 
 		public MqttClient(
 			MqttBrokerConfig broker,
@@ -46,7 +51,7 @@ namespace SmartHomeDotNet.Mqtt
 		{
 			_broker = broker;
 			_scheduler = messagesScheduler;
-			_rootTopics = autoSubscribeRootTopics;
+			_rootTopics = autoSubscribeRootTopics.Select(ToSubscribeTopic).ToArray();
 
 #if DEBUG
 			IsTestEnvironment = isTestEnvironment ?? true;
@@ -77,36 +82,9 @@ namespace SmartHomeDotNet.Mqtt
 		/// </summary>
 		/// <param name="topic">The topic name to subscribe</param>
 		/// <returns>An observable sequence that produces a value each time the value or any sub topic changes probed with the initial current state.</returns>
-		public IObservable<MqttTopicValues> GetAndObserveState(string topic)
+		public IObservable<MqttTopicValues> GetAndObserveTopic(string topic)
 		{
-			if (topic.Contains('#') || topic.Contains('+'))
-			{
-				throw new ArgumentOutOfRangeException(
-					nameof(topic),
-					$"The device id '{topic}' must be fully qualified (i.e. you cannot use wilcards).");
-			}
-
-			return Observable
-				.DeferAsync(async ct =>
-				{
-					Enable();
-
-					var mqttTopic = await _connection.Subscribe(ct, topic);
-					if (mqttTopic.HasValue)
-					{
-						return mqttTopic
-							.ObserveUpdates()
-							.StartWith(Scheduler.Immediate, default((MqttTopic topic, string value)))
-							.Select(changed => mqttTopic.ToImmutable(changed.topic, changed.value));
-					}
-					else
-					{
-						return mqttTopic
-							.ObserveUpdates()
-							.Select(changed => mqttTopic.ToImmutable(changed.topic, changed.value));
-					}
-				})
-				.Finally(Release);
+			return Observable.Using(Enable, mqtt => mqtt.Get(topic).GetAndObserve());
 		}
 
 		/// <summary>
@@ -114,27 +92,11 @@ namespace SmartHomeDotNet.Mqtt
 		/// </summary>
 		/// <param name="topic">The topic name to subscribe</param>
 		/// <returns>An observable sequence that produces a value each time the value changes</returns>
-		public IObservable<string> ObserveEvent(string topic)
+		public IObservable<string> ObserveTopic(string topic)
 		{
-			if (topic.Contains('#') || topic.Contains('+'))
-			{
-				throw new ArgumentOutOfRangeException(
-					nameof(topic),
-					$"The device id '{topic}' must be fully qualified (i.e. you cannot use wildcards).");
-			}
+			topic = ToSubscribeTopic(topic);
 
-			return Observable
-				.DeferAsync(async ct =>
-				{
-					Enable();
-
-					var mqttTopic = await _connection.Subscribe(ct, topic, QualityOfService.ExcatlyOnce);
-
-					return mqttTopic
-						.ObserveUpdates()
-						.Select(update => update.value);
-				})
-				.Finally(Release);
+			return Observable.Using(Enable, mqtt => mqtt.Get(topic).ObserveLocalValue());
 		}
 
 		/// <summary>
@@ -148,190 +110,356 @@ namespace SmartHomeDotNet.Mqtt
 		/// <returns>An asynchronous operation</returns>
 		public async Task Publish(CancellationToken ct, string topic, string value, QualityOfService qos = QualityOfService.AtLeastOnce, bool retain = true)
 		{
-			try
+			using (var mqtt = Enable())
 			{
-				Enable();
-
-				await _connection.Publish(ct, topic, value);
-			}
-			finally
-			{
-				Release();
+				await mqtt.Publish(ct, topic, value, qos, retain);
 			}
 		}
 
-		private void Enable()
+		private object _connection2Gate = new object();
+		private int _connections;
+		private Subscription Enable()
 		{
-			lock (_connectionGate)
+			Interlocked.Increment(ref _connectionClients);
+
+			var connection = _subscription;
+			if (connection == null)
 			{
-				if (++_connectionClients == 1)
+				lock (_connection2Gate)
 				{
-					_connection = new Connection(this);
-				}
-			}
-		}
-
-		private void Release()
-		{
-			lock (_connectionGate)
-			{
-				if (--_connectionClients == 0)
-				{
-					var connection = _connection;
-					_connection = null;
-					connection.Dispose();
-				}
-			}
-		}
-
-		private class Connection : IDisposable
-		{
-			private readonly CompositeDisposable _subscriptions = new CompositeDisposable(2);
-
-			private readonly uPLibrary.Networking.M2Mqtt.MqttClient _client;
-			private readonly MqttCache _topics;
-			private readonly IObservable<(bool hasUpdated, MqttTopic updated)> _messages;
-			private readonly Task _isReady;
-			private readonly IScheduler _scheduler;
-
-			public Connection(MqttClient owner)
-			{
-				_scheduler = owner._scheduler;
-				_topics = new MqttCache();
-				_client = new uPLibrary.Networking.M2Mqtt.MqttClient(owner._broker.Host, owner._broker.Port, false, null, null, MqttSslProtocols.None);
-
-				var messages = CreateMessagesObservable();
-				_messages = messages;
-
-				// First subscribe to the message received
-				_subscriptions.Add(messages.Connect());
-
-				// Connect to broker
-				_client.Connect(
-					owner._broker.ClientId,
-					owner._broker.Username,
-					owner._broker.Password,
-					willRetain: true,
-					willQosLevel: (byte)QualityOfService.AtLeastOnce,
-					willFlag: true,
-					willTopic: owner._broker.ClientStatusTopic,
-					willMessage: "offline",
-					cleanSession: true,
-					keepAlivePeriod: (ushort)(Debugger.IsAttached ? 300 : 10));
-
-				// Birth message
-				_client.Publish(
-					owner._broker.ClientStatusTopic,
-					Encoding.UTF8.GetBytes("online"),
-					(byte)QualityOfService.AtLeastOnce,
-					retain: true);
-
-				// Start discovery
-				_client.Subscribe(
-					owner._rootTopics.Select(t => t.Trim('#', '/') + "/#").ToArray(),
-					Enumerable.Repeat((byte)QualityOfService.AtLeastOnce, owner._rootTopics.Length).ToArray());
-
-				_subscriptions.Add(Disposable.Create(() =>
-				{
-					if (_client.IsConnected)
+					if (_subscription == null)
 					{
-						_client.Disconnect();
+						_subscription = new Connection(_broker, _rootTopics, _scheduler);
 					}
-				}));
 
-				var wildchars = new[] {'+'};
-				var rootTopicsAreReady = owner
-					._rootTopics
-					.Select(t =>
-					{
-						var name = t.Split(wildchars, 2, StringSplitOptions.RemoveEmptyEntries)[0].Trim('#', '/');
-						var topic = _topics.Get(name);
-						var isReady = IsReady(CancellationToken.None, topic);
-
-						return isReady;
-					});
-				_isReady = Task.WhenAll(rootTopicsAreReady);
+					connection = _subscription;
+				}
 			}
 
-			private IConnectableObservable<(bool, MqttTopic)> CreateMessagesObservable()
+			return new Subscription(this, connection);
+		}
+
+		private void Release(Connection connection)
+		{
+			if (_subscription != connection)
 			{
-				var closed = Observable
-					.FromEventPattern<uPLibrary.Networking.M2Mqtt.MqttClient.ConnectionClosedEventHandler, EventArgs>(
-						h => _client.ConnectionClosed += h,
-						h => _client.ConnectionClosed -= h,
-						_scheduler)
-					.Select(_ => Notification.CreateOnError<(bool, MqttTopic)>(new InvalidOperationException("Connection closed")))
-					.Dematerialize();
-
-				var received = Observable
-					.FromEventPattern<uPLibrary.Networking.M2Mqtt.MqttClient.MqttMsgPublishEventHandler, MqttMsgPublishEventArgs>(
-						h => _client.MqttMsgPublishReceived += h,
-						h => _client.MqttMsgPublishReceived -= h,
-						_scheduler)
-					.ObserveOn(_scheduler)
-					.Select(message => _topics.TryUpdate(
-						message.EventArgs.Topic,
-						Encoding.UTF8.GetString(message.EventArgs.Message),
-						message.EventArgs.Retain));
-
-				return received.Merge(closed).Publish();
+				throw new InvalidOperationException("Invalid state");
 			}
 
-			public IObservable<(bool hasUpdated, MqttTopic updated)> ObserveMessages() => _messages;
-
-			public async Task<MqttTopic> Subscribe(CancellationToken ct, string topic, QualityOfService qos = QualityOfService.AtLeastOnce)
+			if (_connectionClients < 3)
 			{
-				// First make sure to wait for all the initial messages to be processed
-				if (!_isReady.IsCompleted)
+				// If there is only few active connections, don't even try to release subscription,
+				// instead delay it by 5 sec to avoid fast connect/disconnect due to subscribe while 'Publish'
+				_scheduler.Schedule(connection, TimeSpan.FromSeconds(5), DelayedRelease);
+			}
+			else if (Interlocked.Decrement(ref _connectionClients) == 0)
+			{
+				// Unfortunately we released the last connection, pseudo-create a new one
+				// then start the delay for the same reasons.
+
+				Interlocked.Increment(ref _connectionClients);
+				_scheduler.Schedule(connection, TimeSpan.FromSeconds(5), DelayedRelease);
+			}
+		}
+
+		private IDisposable DelayedRelease(IScheduler scheduler, Connection connection)
+		{
+			if (_subscription != connection)
+			{
+				throw new InvalidOperationException("Invalid state");
+			}
+
+			if (Interlocked.Decrement(ref _connectionClients) == 0)
+			{
+				lock (_connection2Gate)
 				{
-					await _isReady;
+					if (_connectionClients == 0)
+					{
+						_subscription = null;
+						connection.Dispose();
+					}
+				}
+			}
+
+			return Disposable.Empty;
+		}
+
+		private static string ToSubscribeTopic(string topic)
+		{
+			topic = topic.TrimEnd('#', '/');
+
+			if (topic.Contains('#') || topic.Contains('+'))
+			{
+				throw new ArgumentOutOfRangeException(nameof(topic), $"The topic '{topic}' must be fully qualified (i.e. you cannot use wildcards).");
+			}
+
+			return topic;
+		}
+
+		/// <inheritdoc />
+		public void Dispose()
+		{
+			_subscription.Dispose();
+		}
+
+
+		private class Subscription : IDisposable
+		{
+			private readonly MqttClient _owner;
+			private readonly Connection _connection;
+
+			public Subscription(MqttClient owner, Connection connection)
+			{
+				_owner = owner;
+				_connection = connection;
+			}
+
+			public MqttCacheTopic Get(string topic) 
+				=> _connection.Topics.Get(topic);
+
+			public Task Publish(CancellationToken ct, string topic, string value, QualityOfService qos, bool retain)
+				=> _connection.Publish(ct, topic, value, qos, retain);
+
+			/// <inheritdoc />
+			public void Dispose() => _owner.Release(_connection);
+		}
+
+		private class Connection : IDisposable, IMqttConnection
+		{
+			private readonly SerialDisposable _subscription = new SerialDisposable();
+			private readonly MqttBrokerConfig _config;
+			private readonly object _enablingGate = new object();
+
+			private TaskCompletionSource<IMqttClient> _currentClient;
+
+			/// <inheritdoc />
+			public IScheduler Scheduler { get; }
+
+			public MqttCache Topics { get; }
+
+			public Connection(MqttBrokerConfig config, string[] rootTopics, IScheduler scheduler)
+			{
+				_config = config;
+				Scheduler = scheduler;
+
+				Topics = new MqttCache(this);
+				foreach (var rootTopic in rootTopics)
+				{
+					Topics.Get(rootTopic).AddPermanentRootSubscription();
 				}
 
-				// Even if we are already subscribed to "rootTopic/#", it's common to not receive all 
-				// retained messages at startup (at least with Mosquitto with M2MQTT).
-				// So we specifically subscribe to the observed topic.
+				Enable(isInitial: true);
+			}
+
+			private void Enable(bool isInitial)
+			{
+				if (_currentClient == null || _currentClient.Task.IsCompleted || _currentClient.Task.IsFaulted)
+				{
+					lock (_enablingGate)
+					{
+						if (_currentClient == null || _currentClient.Task.IsCompleted || _currentClient.Task.IsFaulted)
+						{
+							_currentClient = new TaskCompletionSource<IMqttClient>();
+							_subscription.Disposable = Disposable.Empty; // Make sure to never have 2 subscriptions alive at the same time
+							_subscription.Disposable = Scheduler.ScheduleAsync(isInitial, RunAsync);
+						}
+					}
+				}
+			}
+
+			private void OnError(Exception error)
+			{
+				this.Log().Error("MQTT client subscription failed, restore it", error);
+
+				Enable(isInitial: false);
+			}
+
+			private async Task<IDisposable> RunAsync(IScheduler scheduler, bool isInitial, CancellationToken ct)
+			{
+				this.Log().Info("Enabling MQTT client");
+
+				var subscriptions = new CompositeDisposable(3);
+				try
+				{ 
+					using (Topics.Initialize())
+					{
+						var config = new MqttConfiguration
+						{
+							Port = _config.Port,
+							MaximumQualityOfService = MqttQualityOfService.ExactlyOnce,
+							KeepAliveSecs = (ushort) (Debugger.IsAttached ? 300 : 10)
+						};
+						var creds = new MqttClientCredentials(_config.ClientId, _config.Username, _config.Password);
+						var birth = new MqttApplicationMessage(_config.ClientStatusTopic, Encoding.UTF8.GetBytes("online"));
+						var will = new MqttLastWill(_config.ClientStatusTopic, MqttQualityOfService.AtLeastOnce, true, Encoding.UTF8.GetBytes("offline"));
+						var client = await System.Net.Mqtt.MqttClient.CreateAsync(_config.Host, config);
+
+						// First subscribe to the disconnection
+						Observable
+							.FromEventPattern<MqttEndpointDisconnected>(
+								h => client.Disconnected += h,
+								h => client.Disconnected -= h,
+								scheduler)
+							.Do(_ => OnError(new InvalidOperationException("Connection closed")))
+							.Subscribe(_ => { }, OnError)
+							.DisposeWith(subscriptions);
+
+						// Then subscribe to the message received
+						client
+							.MessageStream
+							.DistinctUntilChanged(MessageComparer.Instance) // WEIRD !
+							.ObserveOn(scheduler)
+							.Do(message => Topics.TryUpdate(message.Topic, message.Payload == null ? null : Encoding.UTF8.GetString(message.Payload), message.Retain))
+							.Subscribe(_ => { }, OnError)
+							.DisposeWith(subscriptions);
+
+						// Connect to broker
+						await client.ConnectAsync(creds, will, cleanSession: isInitial);
+						DisconnectAndDispose(client).DisposeWith(subscriptions);
+
+						// Birth message
+						await client.PublishAsync(birth, MqttQualityOfService.AtLeastOnce, retain: true);
+
+						// We set the client as current, then we request to the cache to 'Probe' in order to
+						// initialize/restore all topics subscriptions
+						// Note: The cache is still in initializing mode, so it won't publish any update
+						_currentClient.TrySetResult(client);
+
+						return subscriptions;
+					}
+				}
+				catch (Exception e)
+				{
+					this.Log().Error("Failed to connect to MQTT broker", e);
+
+					_currentClient.TrySetException(e);
+					subscriptions.Dispose();
+
+					return Disposable.Empty;
+				}
+
+				IDisposable DisconnectAndDispose(IMqttClient client) => Disposable.Create(() =>
+				{
+					if (client.IsConnected)
+					{
+						client.DisconnectAsync().ContinueWith(disconnection =>
+						{
+							if (disconnection.IsFaulted)
+							{
+								this.Log().Error("Failed to disconnect client", disconnection.Exception);
+							}
+
+							client.DisposeOrLog("Failed to dispose the client");
+						});
+					}
+					else
+					{
+						client.DisposeOrLog("Failed to dispose the client");
+					}
+				});
+			}
+
+			private class MessageComparer : IEqualityComparer<MqttApplicationMessage>
+			{
+				public static MessageComparer Instance { get; } = new MessageComparer();
+
+				/// <inheritdoc />
+				public bool Equals(MqttApplicationMessage x, MqttApplicationMessage y)
+					=> x == null
+						? y == null
+						: (y != null
+							&& x.Topic == y.Topic
+							&& x.Retain == y.Retain
+							&& (x.Payload?.SequenceEqual(y.Payload) ?? y.Payload == null));
+
+				/// <inheritdoc />
+				public int GetHashCode(MqttApplicationMessage obj)
+					=> obj?.Topic.GetHashCode() ?? 0;
+			}
+
+			private AsyncLock _gate = new AsyncLock();
+
+			public async Task Subscribe(CancellationToken ct, string topic)
+			{
+				if (!_currentClient.Task.IsCompleted)
+				{
+					throw new InvalidOperationException("Cannot subscribe to a topic a this point");
+				}
+
+				var client = _currentClient.Task.Result;
+				if (!client.IsConnected)
+				{
+					throw new Exception("The resolved client is not connected");
+				}
+
+				topic = topic + "/#";
 				this.Log().Info("Subscribing to topic: " + topic);
 
-				_client.Subscribe(
-					new[] { topic + "/#" },
-					new[] { (byte)qos });
-
-				var mqttTopic = _topics.Get(topic);
-
-				// Again, make sure to have received all the retained messages for the requested topic
-				await IsReady(ct, mqttTopic);
-
-				return mqttTopic;
-			}
-
-			public async Task Publish(CancellationToken ct, string topic, string value, QualityOfService qos = QualityOfService.AtLeastOnce, bool retain = true)
-			{
-				// First make sure to wait for all the initial messages to be processed
-				if (!_isReady.IsCompleted)
+				using (await _gate.LockAsync(ct))
 				{
-					await _isReady;
+					await client.SubscribeAsync(topic, MqttQualityOfService.AtLeastOnce);
 				}
-
-				this.Log().Info($"Publishing '{value}' to topic '{topic}'.");
-
-				_client.Publish(topic, Encoding.UTF8.GetBytes(value), (byte) qos, retain);
-				_topics.TryUpdate(topic, value, retain);
 			}
 
-			private async Task IsReady(CancellationToken ct, MqttTopic topic)
+			public Task Publish(CancellationToken ct, string topic, string value, QualityOfService qos, bool retain)
 			{
-				var notUpdatedSinceAFew = topic
-					.ObserveUpdates()
-					.Throttle(TimeSpan.FromMilliseconds(100), _scheduler);
-				var timeout = Observable
-					.Timer(topic.HasValue ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(5), _scheduler)
-					.Select(_ => default((MqttTopic, string)));
+				this.Log().Info($"Publishing ({(retain?"retained": "volatile")}) message to topic '{topic}': {value}");
 
-				await notUpdatedSinceAFew.Amb(timeout).FirstAsync().ToTask(ct);
+				var message = new MqttApplicationMessage(topic, Encoding.UTF8.GetBytes(value), retain);
+
+				return Retry(ct, 3, Send, "publishing message on topic " + topic);
+
+				async Task Send()
+				{
+					var client = await _currentClient.Task;
+					if (!client.IsConnected)
+					{
+						throw new Exception("The resolved client is not connected");
+					}
+
+					using (await _gate.LockAsync(ct))
+					{
+						await client.PublishAsync(message, (MqttQualityOfService)qos, retain);
+					}
+				}
+			}
+
+			private async Task Retry(
+				CancellationToken ct, 
+				int tries, 
+				Func<Task> method, 
+				string message,
+				[CallerMemberName] string caller = null, 
+				[CallerLineNumber] int line = -1)
+			{
+				tries = Math.Max(1, tries);
+				int attempt = 0;
+				do
+				{
+					attempt++;
+
+					try
+					{
+						await method();
+
+						return;
+					}
+					catch (Exception e)
+					{
+						this.Log().Error($"Error while {message} ({caller}@{line}, attempt {attempt} of {tries})", e);
+
+						OnError(e);
+
+						if (attempt == tries)
+						{
+							throw;
+						}
+					}
+				} while (true);
 			}
 
 			/// <inheritdoc />
-			public void Dispose() => _subscriptions.Dispose();
+			public void Dispose() => _subscription.Dispose();
 		}
 	}
 }

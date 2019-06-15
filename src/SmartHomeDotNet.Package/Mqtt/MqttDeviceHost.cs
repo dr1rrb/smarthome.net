@@ -68,7 +68,7 @@ namespace SmartHomeDotNet.Mqtt
 		/// <inheritdoc cref="IDeviceHost"/>
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> _mqtt
-				.GetAndObserveState(_getTopic(device))
+				.GetAndObserveTopic(_getTopic(device))
 				.Select(topic => new DeviceState(device.Id, _getValues(topic), topic.IsRetainedState));
 	}
 }
