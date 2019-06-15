@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using SmartHomeDotNet.SmartHome.Commands;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices
 {
@@ -18,8 +21,24 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// Gets an observable sequence of changes for a device
 		/// </summary>
 		/// <remarks>It is expected that the sequence starts immediately with an initial of changes to reflect the current state of the device.</remarks>
-		/// <param name="id">Identifier of the target device</param>
+		/// <param name="device">Identifier of the target device</param>
 		/// <returns></returns>
 		IObservable<DeviceState> GetAndObserveState(IDevice device);
+
+		/// <summary>
+		/// Executes a command on the target device
+		/// </summary>
+		/// <param name="command">The command to execute</param>
+		/// <param name="device">The device on which the command have to be executed</param>
+		/// <returns>An async operation</returns>
+		AsyncContextOperation Execute(ICommand command, IDevice device);
+
+		/// <summary>
+		/// Executes a command on the target device
+		/// </summary>
+		/// <param name="command">The command to execute</param>
+		/// <param name="devices">The devices on which the command have to be executed</param>
+		/// <returns>An async operation</returns>
+		AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices);
 	}
 }

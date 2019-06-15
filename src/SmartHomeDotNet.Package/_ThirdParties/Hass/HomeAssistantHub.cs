@@ -40,12 +40,13 @@ namespace SmartHomeDotNet.Hass
 			homeTopic = homeTopic.Trim('/', '#', '*');
 			hassTopic = hassTopic.Trim('/', '#', '*');
 
-			var mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, scheduler);
+			var api = new HomeAssistantApi(apiHostName, apiPassword);
+			var mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
 
 			Devices = new HomeDevicesManager(mqttStateStream);
 			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler);
 			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler);
-			Api = new HomeAssistantApi(apiHostName, apiPassword);
+			Api = api;
 		}
 
 		/// <summary>
