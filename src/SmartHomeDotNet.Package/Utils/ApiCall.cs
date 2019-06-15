@@ -13,13 +13,33 @@ namespace SmartHomeDotNet.Utils
 {
 	public abstract class AsyncContextOperation : INotifyCompletion
 	{
-		private readonly CancellationTokenSource _ct = new CancellationTokenSource();
+		private readonly CancellationTokenSource _ct;
 		private Task _task;
 		private IDisposable _contextSubscription;
+
+		public static AsyncContextOperation Completed { get; } = new Impl(Task.CompletedTask);
+
+		public static AsyncContextOperation StartNew(Func<CancellationToken, Task> factory) => new Impl(factory);
+
+		public static AsyncContextOperation FromTask(Task task) => new Impl(task);
+
+		private class Impl : AsyncContextOperation
+		{
+			public Impl(Func<CancellationToken, Task> factory)
+			{
+				Init(factory(Token));
+			}
+
+			public Impl(Task task)
+			{
+				Init(task);
+			}
+		}
 
 		// internal until we find a more robust contract than the Init !
 		internal AsyncContextOperation()
 		{
+			_ct = new CancellationTokenSource();
 		}
 
 		/// <summary>
