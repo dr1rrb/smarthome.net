@@ -80,10 +80,10 @@ namespace SmartHomeDotNet.Mqtt
 			var isClientEnabled = _mqtt
 				.GetAndObserveIsEnabled();
 			var isAutomationEnabled = _mqtt
-				.GetAndObserveState(GetTopic(automation))
-				.Select(state =>
+				.GetAndObserveTopic(GetTopic(automation))
+				.Select(topic =>
 				{
-					var s = state.Values.GetValueOrDefault("state");
+					var s = topic.Values.GetValueOrDefault("state");
 
 					return s == null || s == "enabled"; // If not configured, we assumed enabled
 				});

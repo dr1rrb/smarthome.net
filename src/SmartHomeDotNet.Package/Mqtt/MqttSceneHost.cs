@@ -90,7 +90,7 @@ namespace SmartHomeDotNet.Mqtt
 
 			// The actual commands from the mqtt topic state
 			var commands = _mqtt
-				.ObserveEvent(GetControlTopic(scene))
+				.ObserveTopic(GetControlTopic(scene))
 				.Select(evt => evt.Equals("start", StringComparison.OrdinalIgnoreCase)
 					? SceneCommand.Start
 					: SceneCommand.Stop);

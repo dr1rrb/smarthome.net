@@ -8,6 +8,18 @@ namespace SmartHomeDotNet.Utils
 {
 	public static class DisposableExtensions
 	{
+		public static void DisposeOrLog(this IDisposable disposable, string logMessage)
+		{
+			try
+			{
+				disposable.Dispose();
+			}
+			catch (Exception e)
+			{
+				disposable.Log().Error(logMessage, e);
+			}
+		}
+
 		public static void DisposeAllOrLog<T>(this IEnumerable<T> disposables, string logMessage)
 			where T : IDisposable
 		{
