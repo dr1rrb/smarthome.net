@@ -94,7 +94,7 @@ namespace SmartHomeDotNet.Utils
 						.SelectMany(d => Observable.FromAsync(
 							async ct =>
 							{
-								using (@lock.LockAsync(ct))
+								using (await @lock.LockAsync(ct))
 								{
 									await action(ct, d);
 								}

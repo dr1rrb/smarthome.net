@@ -15,8 +15,17 @@ namespace SmartHomeDotNet.Utils
 		/// Asynchronously waits for a given delay, using the <see cref="Current"/> async context to manage therading and cancellation.
 		/// </summary>
 		/// <remarks>If current context is not set, this delay cannot be aborted.</remarks>
+		/// <param name="delayMs">The delay in milliseconds to wait before continuation</param>
+		/// <returns>An asynchronous operation that will complete at the end of the given delay</returns>
+		public static Task Delay(int delayMs)
+			=> Delay(TimeSpan.FromMilliseconds(delayMs));
+
+		/// <summary>
+		/// Asynchronously waits for a given delay, using the <see cref="Current"/> async context to manage therading and cancellation.
+		/// </summary>
+		/// <remarks>If current context is not set, this delay cannot be aborted.</remarks>
 		/// <param name="delay">The delay to wait before continuation</param>
-		/// <returns>An asynchrnous operation that will complete at the end of the given delay</returns>
+		/// <returns>An asynchronous operation that will complete at the end of the given delay</returns>
 		public static async Task Delay(TimeSpan delay)
 		{
 			if (Current == null)
