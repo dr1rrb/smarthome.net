@@ -11,6 +11,11 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// The identifier of this device
 		/// </summary>
-		string Id { get; }
+		object Id { get; }
+
+		/// <summary>
+		/// Gets the host which host this device
+		/// </summary>
+		IDeviceHost Host { get; }
 	}
 }

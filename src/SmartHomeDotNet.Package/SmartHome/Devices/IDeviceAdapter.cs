@@ -13,6 +13,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// Initialize the device with its values
 		/// </summary>
 		/// <param name="state">The values of this instance of the device</param>
-		void Init(DeviceState state);
+		/// <param name="host">The host which handle this device</param>
+		void Init(DeviceState state, IDeviceHost host);
 	}
 }

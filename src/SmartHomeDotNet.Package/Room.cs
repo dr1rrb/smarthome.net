@@ -10,7 +10,7 @@ namespace SmartHomeDotNet
 	{
 		protected static THome Home => HomeBase<THome>.Current;
 
-		protected static HomeDevice<TDevice> Get<TDevice>(string deviceId, [CallerMemberName] string deviceName = null)
+		protected static HomeDevice<TDevice> Get<TDevice>(object deviceId, [CallerMemberName] string deviceName = null)
 			where TDevice : IDeviceAdapter, new()
 			=> HomeBase<THome>.Current.GetDefaultDeviceManager(deviceName).GetDevice<TDevice>(deviceId); 
 	}

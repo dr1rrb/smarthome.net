@@ -1,14 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Reactive.Concurrency;
 using System.Reactive.Subjects;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Testing
 {
 	public class TestDeviceHost : IDeviceHost
 	{
-		private ImmutableDictionary<string, ISubject<DeviceState>> _state = ImmutableDictionary<string, ISubject<DeviceState>>.Empty.WithComparers(StringComparer.InvariantCultureIgnoreCase);
+		private ImmutableDictionary<object, ISubject<DeviceState>> _state = ImmutableDictionary<object, ISubject<DeviceState>>.Empty.WithComparers(EqualityComparer<object>.Default);
 
 		public TestDeviceHost(IScheduler scheduler = null)
 		{
@@ -28,6 +31,14 @@ namespace SmartHomeDotNet.Testing
 		/// <inheritdoc />
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> ImmutableInterlocked.GetOrAdd(ref _state, device.Id, new ReplaySubject<DeviceState>(Scheduler));
+
+		/// <inheritdoc />
+		public AsyncContextOperation Execute(ICommand command, IDevice device)
+			=> throw new NotImplementedException();
+
+		/// <inheritdoc />
+		public AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices)
+			=> throw new NotImplementedException();
 	}
 
 	public static class HomeDeviceExtensions

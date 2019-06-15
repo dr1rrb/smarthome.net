@@ -1,16 +1,19 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Mqtt
 {
 	/// <summary>
 	/// A <see cref="IDeviceHost"/> which relies on MQTT to communicate with devices
 	/// </summary>
-	public class MqttDeviceHost : IDeviceHost
+	public abstract class MqttDeviceHost : IDeviceHost
 	{
 		private readonly MqttClient _mqtt;
 		private readonly Func<IDevice, string> _getTopic;
@@ -19,17 +22,6 @@ namespace SmartHomeDotNet.Mqtt
 		/// <inheritdoc />
 		public IScheduler Scheduler { get; }
 
-		/// <summary>
-		/// Creates a new instance
-		/// </summary>
-		/// <param name="mqtt">A client to an MQTT broker</param>
-		/// <param name="scheduler">The scheduler that is used by devices which uses this host</param>
-		public MqttDeviceHost(
-			MqttClient mqtt,
-			IScheduler scheduler)
-			: this(mqtt, device => device.Id, topic => topic.Values, scheduler)
-		{
-		}
 
 		/// <summary>
 		/// Creates a new instance
@@ -70,5 +62,11 @@ namespace SmartHomeDotNet.Mqtt
 			=> _mqtt
 				.GetAndObserveTopic(_getTopic(device))
 				.Select(topic => new DeviceState(device.Id, _getValues(topic), topic.IsRetainedState));
+
+		/// <inheritdoc />
+		public abstract AsyncContextOperation Execute(ICommand command, IDevice device);
+
+		/// <inheritdoc />
+		public abstract AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices);
 	}
 }

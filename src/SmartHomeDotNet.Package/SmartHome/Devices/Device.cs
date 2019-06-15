@@ -15,10 +15,11 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		private DeviceState _state;
 		private dynamic _raw;
 
-		/// <summary>
-		/// The Id of this device
-		/// </summary>
-		public string Id => GetState().DeviceId;
+		/// <inheritdoc />
+		public object Id => GetState().DeviceId;
+
+		/// <inheritdoc />
+		public IDeviceHost Host { get; private set; }
 
 		/// <summary>
 		/// The raw source value of the device
@@ -26,15 +27,14 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		protected dynamic Raw => _raw ?? (_raw = GetState().ToDynamic());
 
 		/// <inheritdoc />
-		void IDeviceAdapter.Init(DeviceState state)
+		void IDeviceAdapter.Init(DeviceState state, IDeviceHost host)
 		{
-			if (state == null)
-			{
-				throw new ArgumentNullException(nameof(state));
-			}
+			state = state ?? throw new ArgumentNullException(nameof(state));
+			host = host ?? throw new ArgumentNullException(nameof(host));
 
 			if (Interlocked.CompareExchange(ref _state, state, null) == null)
 			{
+				Host = host;
 				OnInit();
 			}
 			else

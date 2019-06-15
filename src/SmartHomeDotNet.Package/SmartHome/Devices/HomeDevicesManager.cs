@@ -15,28 +15,28 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	{
 		private readonly IDeviceHost _host;
 
-		private ImmutableDictionary<string, Device> _devices = ImmutableDictionary<string, Device>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
+		private ImmutableDictionary<object, Holder> _devices = ImmutableDictionary<object, Holder>.Empty.WithComparers(EqualityComparer<object>.Default);
 
 		public HomeDevicesManager(IDeviceHost host)
 		{
 			_host = host;
 		}
 
-		public HomeDevice<ExpandoObject> GetDevice(string deviceId)
-			=> GetOrCreate(deviceId).As(Device.Dynamic);
+		public HomeDevice<ExpandoObject> GetDevice(object deviceId)
+			=> GetOrCreate(deviceId).As(Holder.Dynamic);
 
-		public HomeDevice<TDevice> GetDevice<TDevice>(string deviceId)
+		public HomeDevice<TDevice> GetDevice<TDevice>(object deviceId)
 			where TDevice : IDeviceAdapter, new()
-			=> GetOrCreate(deviceId).As(Device.Generic<TDevice>);
+			=> GetOrCreate(deviceId).As(Holder.Generic<TDevice>);
 
-		public HomeDevice<TDevice> GetDevice<TDevice>(string deviceId, Func<DeviceState, TDevice> deviceFactory)
+		public HomeDevice<TDevice> GetDevice<TDevice>(object deviceId, Func<DeviceState, IDeviceHost, TDevice> deviceFactory)
 			=> GetOrCreate(deviceId).As(deviceFactory);
 
-		private Device GetOrCreate(string deviceId)
+		private Holder GetOrCreate(object deviceId)
 		{
 			// As we use 'devices == null' to check the dispose state, we cannot use:
 			// ImmutableInterlocked.GetOrAdd(ref _devices, deviceId, (id, host) => new Device(id, host), _host);
-			var newDevice = default(Device);
+			var newDevice = default(Holder);
 			while (true)
 			{
 				var devices = _devices;
@@ -52,7 +52,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 				if (newDevice == null)
 				{
-					newDevice = new Device(deviceId, _host);
+					newDevice = new Holder(deviceId, _host);
 				}
 
 				if (Interlocked.CompareExchange(ref _devices, devices.Add(deviceId, newDevice), devices) == devices)
@@ -66,33 +66,35 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		public void Dispose()
 			=> Interlocked.Exchange(ref _devices, null)?.Values.DisposeAllOrLog("Failed to dispose a device");
 
-		private class Device : IDisposable, IDevice
+		private class Holder : IDisposable, IDevice
 		{
-			public static TDevice Generic<TDevice>(DeviceState state)
+			public static TDevice Generic<TDevice>(DeviceState state, IDeviceHost host)
 				where TDevice : IDeviceAdapter, new()
 			{
 				var device = new TDevice();
-				device.Init(state);
+				device.Init(state, host);
 				return device;
 			}
 
-			public static ExpandoObject Dynamic(DeviceState state)
+			public static ExpandoObject Dynamic(DeviceState state, IDeviceHost host)
 				=> state.ToDynamic();
 
-
-			private readonly IDeviceHost _host;
 			private readonly IScheduler _scheduler;
 			private readonly IObservable<DeviceState> _source;
 
 			private ImmutableDictionary<Type, IDisposable> _casts = ImmutableDictionary<Type, IDisposable>.Empty;
 
 			/// <inheritdoc />
-			public string Id { get; }
+			public object Id { get; }
 
-			public Device(string id, IDeviceHost host)
+			/// <inheritdoc />
+			public IDeviceHost Host { get; }
+
+			public Holder(object id, IDeviceHost host)
 			{
-				_host = host;
 				Id = id;
+				Host = host;
+
 				_scheduler = host.Scheduler;
 				_source = host
 					.GetAndObserveState(this)
@@ -101,12 +103,12 @@ namespace SmartHomeDotNet.SmartHome.Devices
 					.RefCount();
 			}
 
-			public HomeDevice<TDevice> As<TDevice>(Func<DeviceState, TDevice> factory)
+			public HomeDevice<TDevice> As<TDevice>(Func<DeviceState, IDeviceHost, TDevice> factory)
 			{
 				return (HomeDevice<TDevice>)ImmutableInterlocked.GetOrAdd(ref _casts, typeof(TDevice), Create, factory);
 
-				IDisposable Create(Type _, Func<DeviceState, TDevice> f) 
-					=> new HomeDevice<TDevice>(_host, Id, _source, f, _scheduler);
+				IDisposable Create(Type _, Func<DeviceState, IDeviceHost, TDevice> f) 
+					=> new HomeDevice<TDevice>(Host, Id, _source, f, _scheduler);
 			}
 
 			/// <inheritdoc />

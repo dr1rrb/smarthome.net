@@ -20,19 +20,21 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		// The throttle to wait for the initial device to load before being published
 		// It's frequent (eg. Home Assistant) to be dispatched on multiple MQTT topics, so with this delay we make sure
 		// we have received all the updates of the device before publishing its value.
+		// Note: We don't want to package this in the MqqtDeviceHost (or any other device host) as we want to be able to 
+		//		 apply this delay only when this HomeDevice is used using the Awaiter.
 		private static readonly TimeSpan _initialThrottling = TimeSpan.FromMilliseconds(50);
 
 		private readonly IConnectableObservable<TDevice> _source;
 
 		private readonly Subject<TDevice> _device = new Subject<TDevice>();
-		private TDevice _lastPersistedDevice;
-		private bool _hasPersistedDevice;
+		private TDevice _lastPersisted;
+		private bool _hasPersisted;
 
 		private readonly SingleAssignmentDisposable _subscription = new SingleAssignmentDisposable();
 
 		private int _isConnected;
 
-		public HomeDevice(IDeviceHost host, string id, IObservable<DeviceState> source, Func<DeviceState, TDevice> toDevice, IScheduler scheduler)
+		public HomeDevice(IDeviceHost host, object id, IObservable<DeviceState> source, Func<DeviceState, IDeviceHost, TDevice> toDevice, IScheduler scheduler)
 		{
 			Host = host;
 			Id = id;
@@ -42,11 +44,11 @@ namespace SmartHomeDotNet.SmartHome.Devices
 			_source = source
 				.Select(state =>
 				{
-					var device = toDevice(state);
+					var device = toDevice(state, Host);
 					if (state.IsPersistedState)
 					{
-						_lastPersistedDevice = device;
-						_hasPersistedDevice = true;
+						_lastPersisted = device;
+						_hasPersisted = true;
 					}
 
 					return device;
@@ -58,10 +60,10 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Gets the host of this device (for testing purposes)
 		/// </summary>
-		internal IDeviceHost Host { get; }
+		public IDeviceHost Host { get; }
 
 		/// <inheritdoc />
-		public string Id { get; }
+		public object Id { get; }
 
 		public Awaiter GetAwaiter()
 		{
@@ -73,9 +75,9 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <inheritdoc />
 		public IDisposable Subscribe(IObserver<TDevice> observer)
 		{
-			if (_hasPersistedDevice)
+			if (_hasPersisted)
 			{
-				observer.OnNext(_lastPersistedDevice);
+				observer.OnNext(_lastPersisted);
 			}
 
 			var subscription = _source.Subscribe(observer);
@@ -98,7 +100,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 			=> _subscription.Dispose();
 
 		/// <summary>
-		/// An async/await pattern awaiter optimized for the LazyDevice
+		/// An async/await pattern awaiter optimized for the HomeDevice
 		/// </summary>
 		public struct Awaiter : INotifyCompletion
 		{
@@ -111,16 +113,16 @@ namespace SmartHomeDotNet.SmartHome.Devices
 				_awaiter = null;
 			}
 
-			public bool IsCompleted => _owner._hasPersistedDevice;
+			public bool IsCompleted => _owner._hasPersisted;
 
 			public TDevice GetResult()
-				=> _owner._hasPersistedDevice
-					? _owner._lastPersistedDevice
+				=> _owner._hasPersisted
+					? _owner._lastPersisted
 					: throw new InvalidOperationException("This awaiter cannot run synchronously.");
 
 			public async void OnCompleted(Action continuation)
 			{
-				if (_owner._hasPersistedDevice)
+				if (_owner._hasPersisted)
 				{
 					continuation();
 				}

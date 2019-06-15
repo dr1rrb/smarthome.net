@@ -6,7 +6,9 @@ using System.Reactive.Concurrency;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using SmartHomeDotNet.Mqtt;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Zigbee2Mqtt
 {
@@ -42,5 +44,13 @@ namespace SmartHomeDotNet.Zigbee2Mqtt
 
 			return values;
 		}
+
+		/// <inheritdoc />
+		public override AsyncContextOperation Execute(ICommand command, IDevice device)
+			=> throw new NotSupportedException("Zigbee2Mqtt device host supports only read");
+
+		/// <inheritdoc />
+		public override AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices)
+			=> throw new NotSupportedException("Zigbee2Mqtt device host supports only read");
 	}
 }

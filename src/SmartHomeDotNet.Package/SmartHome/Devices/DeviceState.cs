@@ -17,7 +17,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <param name="deviceId">Id of the device</param>
 		/// <param name="properties">The properties of the device</param>
 		/// <param name="isPersistedState">A boolean which indicates if this device state is a transient state (e.g. button pressed), or not</param>
-		public DeviceState(string deviceId, ImmutableDictionary<string, string> properties, bool isPersistedState)
+		public DeviceState(object deviceId, ImmutableDictionary<string, string> properties, bool isPersistedState)
 		{
 			DeviceId = deviceId;
 			Properties = properties;
@@ -27,7 +27,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Id of the updated device
 		/// </summary>
-		public string DeviceId { get; }
+		public object DeviceId { get; }
 
 		/// <summary>
 		/// Set of all properties of this device
