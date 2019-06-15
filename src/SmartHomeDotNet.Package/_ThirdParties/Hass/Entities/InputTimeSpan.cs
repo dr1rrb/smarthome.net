@@ -5,7 +5,7 @@ using SmartHomeDotNet.SmartHome.Devices;
 namespace SmartHomeDotNet.Hass.Entities
 {
 	/// <summary>
-	/// A marker interface for <see cref="InputSelect{T}"/> device which allows type inference
+	/// A marker interface for <see cref="InputTimeSpan"/> device which allows type inference
 	/// </summary>
 	public interface IInputTimeSpan : IDevice<IInputTimeSpan>
 	{
