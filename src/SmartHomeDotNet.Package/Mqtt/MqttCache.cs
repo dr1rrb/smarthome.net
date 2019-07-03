@@ -22,7 +22,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		public bool TryUpdate(string topic, string value, bool retained)
 		{
-			this.Log().Info($"Received MQTT message '{topic}': {value}");
+			this.Log().Debug($"Received MQTT message '{topic}': {value}");
 
 			return topic
 				.Split(_seperator, StringSplitOptions.RemoveEmptyEntries)

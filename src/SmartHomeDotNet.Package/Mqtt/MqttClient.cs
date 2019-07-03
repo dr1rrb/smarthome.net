@@ -26,13 +26,28 @@ namespace SmartHomeDotNet.Mqtt
 	/// </summary>
 	public sealed class MqttClient : IDisposable
 	{
+		// If the connection failed (network issue?) we auto schedule a retry in 1 mn
+		// Note: If someone tries to send a message, it will bypass this delay.
+		private static readonly TimeSpan _connectionInfiniteRetryDelay = TimeSpan.FromMinutes(1);
+
+		// Publish something on a regular basis to maintain the connection alive
+		// Workaround an issue with system.net.mqtt which seems to be disconnected without any notification
+		private static readonly TimeSpan _connectionActivePullingDelay = TimeSpan.FromMinutes(1);
+
+		/// <summary>
+		/// The delay to wait after the last subscriber on the client disconnected before aborting underlying MQTT broker subscription
+		/// </summary>
+		private static readonly TimeSpan _connectionAbortDelay = TimeSpan.FromSeconds(5);
+
+		// When sending a message on the current connection, number of tentative before throwing an exception on caller
+		private const int _sendMessageTries = 3;
+
 		private readonly MqttBrokerConfig _broker;
 		private readonly IScheduler _scheduler;
 		private readonly string[] _rootTopics;
 
-		private readonly Utils.AsyncLock _connectionGate = new Utils.AsyncLock();
-		//private Connection _connection;
-		private int _connectionClients = 0;
+		private readonly object _connectionGate = new object();
+		private int _connectionClients;
 		private Connection _subscription;
 
 		public MqttClient(
@@ -116,8 +131,6 @@ namespace SmartHomeDotNet.Mqtt
 			}
 		}
 
-		private object _connection2Gate = new object();
-		private int _connections;
 		private Subscription Enable()
 		{
 			Interlocked.Increment(ref _connectionClients);
@@ -125,7 +138,7 @@ namespace SmartHomeDotNet.Mqtt
 			var connection = _subscription;
 			if (connection == null)
 			{
-				lock (_connection2Gate)
+				lock (_connectionGate)
 				{
 					if (_subscription == null)
 					{
@@ -150,7 +163,7 @@ namespace SmartHomeDotNet.Mqtt
 			{
 				// If there is only few active connections, don't even try to release subscription,
 				// instead delay it by 5 sec to avoid fast connect/disconnect due to subscribe while 'Publish'
-				_scheduler.Schedule(connection, TimeSpan.FromSeconds(5), DelayedRelease);
+				_scheduler.Schedule(connection, _connectionAbortDelay, DelayedRelease);
 			}
 			else if (Interlocked.Decrement(ref _connectionClients) == 0)
 			{
@@ -158,7 +171,7 @@ namespace SmartHomeDotNet.Mqtt
 				// then start the delay for the same reasons.
 
 				Interlocked.Increment(ref _connectionClients);
-				_scheduler.Schedule(connection, TimeSpan.FromSeconds(5), DelayedRelease);
+				_scheduler.Schedule(connection, _connectionAbortDelay, DelayedRelease);
 			}
 		}
 
@@ -171,7 +184,7 @@ namespace SmartHomeDotNet.Mqtt
 
 			if (Interlocked.Decrement(ref _connectionClients) == 0)
 			{
-				lock (_connection2Gate)
+				lock (_connectionGate)
 				{
 					if (_connectionClients == 0)
 					{
@@ -227,14 +240,20 @@ namespace SmartHomeDotNet.Mqtt
 		private class Connection : IDisposable, IMqttConnection
 		{
 			private readonly SerialDisposable _subscription = new SerialDisposable();
-			private readonly MqttBrokerConfig _config;
+			private readonly SerialDisposable _restore = new SerialDisposable();
 			private readonly object _enablingGate = new object();
+			private readonly AsyncLock _clientGate = new AsyncLock(); // Unfortunately, sending multiple message concurrently causes some issue with System.Net.Mqtt
+
+			private readonly MqttBrokerConfig _config;
 
 			private TaskCompletionSource<IMqttClient> _currentClient;
 
 			/// <inheritdoc />
 			public IScheduler Scheduler { get; }
 
+			/// <summary>
+			/// The root of the MQTT cache 
+			/// </summary>
 			public MqttCache Topics { get; }
 
 			public Connection(MqttBrokerConfig config, string[] rootTopics, IScheduler scheduler)
@@ -251,6 +270,13 @@ namespace SmartHomeDotNet.Mqtt
 				Enable(isInitial: true);
 			}
 
+			private void OnError(Exception error)
+			{
+				this.Log().Error("MQTT client subscription failed, restore it", error);
+
+				_restore.Disposable = Scheduler.Schedule(() => Enable(isInitial: false));
+			}
+
 			private void Enable(bool isInitial)
 			{
 				if (_currentClient == null || _currentClient.Task.IsCompleted || _currentClient.Task.IsFaulted)
@@ -261,24 +287,17 @@ namespace SmartHomeDotNet.Mqtt
 						{
 							_currentClient = new TaskCompletionSource<IMqttClient>();
 							_subscription.Disposable = Disposable.Empty; // Make sure to never have 2 subscriptions alive at the same time
-							_subscription.Disposable = Scheduler.ScheduleAsync(isInitial, RunAsync);
+							_subscription.Disposable = Scheduler.ScheduleAsync(isInitial, Enable);
 						}
 					}
 				}
 			}
 
-			private void OnError(Exception error)
-			{
-				this.Log().Error("MQTT client subscription failed, restore it", error);
-
-				Enable(isInitial: false);
-			}
-
-			private async Task<IDisposable> RunAsync(IScheduler scheduler, bool isInitial, CancellationToken ct)
+			private async Task<IDisposable> Enable(IScheduler scheduler, bool isInitial, CancellationToken ct)
 			{
 				this.Log().Info("Enabling MQTT client");
 
-				var subscriptions = new CompositeDisposable(3);
+				var subscriptions = new CompositeDisposable(4);
 				try
 				{ 
 					using (Topics.Initialize())
@@ -320,6 +339,17 @@ namespace SmartHomeDotNet.Mqtt
 						// Birth message
 						await client.PublishAsync(birth, MqttQualityOfService.AtLeastOnce, retain: true);
 
+						// Publish something on a regular basis to maintain the connection alive
+						// Workaround an issue with system.net.mqtt which seems to be disconnected without any notification
+						Observable
+							.Interval(_connectionActivePullingDelay, scheduler)
+							.Execute(
+								(ct2, _) => Publish(ct, _config.ClientLastSeenTopic, DateTimeOffset.Now.ToString("R"), QualityOfService.AtLeastOnce, retain: false), 
+								ConcurrentExecutionMode.AbortPrevious, 
+								scheduler)
+							.Subscribe(_ => { }, OnError)
+							.DisposeWith(subscriptions);
+
 						// We set the client as current, then we request to the cache to 'Probe' in order to
 						// initialize/restore all topics subscriptions
 						// Note: The cache is still in initializing mode, so it won't publish any update
@@ -330,12 +360,14 @@ namespace SmartHomeDotNet.Mqtt
 				}
 				catch (Exception e)
 				{
-					this.Log().Error("Failed to connect to MQTT broker", e);
+					this.Log().Error($"Failed to connect to MQTT broker, will retry in {_connectionInfiniteRetryDelay}.", e);
 
 					_currentClient.TrySetException(e);
 					subscriptions.Dispose();
 
-					return Disposable.Empty;
+					// If the connection failed (network issue?) we auto schedule a retry in 1 mn
+					// Note: If someone tries to send a message, it will bypass this delay.
+					return scheduler.Schedule(_connectionInfiniteRetryDelay, () => OnError(null));
 				}
 
 				IDisposable DisconnectAndDispose(IMqttClient client) => Disposable.Create(() =>
@@ -377,8 +409,6 @@ namespace SmartHomeDotNet.Mqtt
 					=> obj?.Topic.GetHashCode() ?? 0;
 			}
 
-			private AsyncLock _gate = new AsyncLock();
-
 			public async Task Subscribe(CancellationToken ct, string topic)
 			{
 				if (!_currentClient.Task.IsCompleted)
@@ -395,7 +425,7 @@ namespace SmartHomeDotNet.Mqtt
 				topic = topic + "/#";
 				this.Log().Info("Subscribing to topic: " + topic);
 
-				using (await _gate.LockAsync(ct))
+				using (await _clientGate.LockAsync(ct))
 				{
 					await client.SubscribeAsync(topic, MqttQualityOfService.AtLeastOnce);
 				}
@@ -406,28 +436,15 @@ namespace SmartHomeDotNet.Mqtt
 				this.Log().Info($"Publishing ({(retain?"retained": "volatile")}) message to topic '{topic}': {value}");
 
 				var message = new MqttApplicationMessage(topic, Encoding.UTF8.GetBytes(value), retain);
+				Task Send(IMqttClient client) => client.PublishAsync(message, (MqttQualityOfService)qos, retain);
 
-				return Retry(ct, 3, Send, "publishing message on topic " + topic);
-
-				async Task Send()
-				{
-					var client = await _currentClient.Task;
-					if (!client.IsConnected)
-					{
-						throw new Exception("The resolved client is not connected");
-					}
-
-					using (await _gate.LockAsync(ct))
-					{
-						await client.PublishAsync(message, (MqttQualityOfService)qos, retain);
-					}
-				}
+				return UsingCurrentClient(ct, _sendMessageTries, Send, "publishing message on topic " + topic);
 			}
 
-			private async Task Retry(
+			private async Task UsingCurrentClient(
 				CancellationToken ct, 
 				int tries, 
-				Func<Task> method, 
+				Func<IMqttClient, Task> action, 
 				string message,
 				[CallerMemberName] string caller = null, 
 				[CallerLineNumber] int line = -1)
@@ -438,9 +455,19 @@ namespace SmartHomeDotNet.Mqtt
 				{
 					attempt++;
 
+					var clientAsync = _currentClient;
 					try
 					{
-						await method();
+						var client = await clientAsync.Task;
+						if (!client.IsConnected)
+						{
+							throw new Exception("The resolved client is not connected");
+						}
+
+						using (await _clientGate.LockAsync(ct))
+						{
+							await action(client);
+						}
 
 						return;
 					}
@@ -454,12 +481,25 @@ namespace SmartHomeDotNet.Mqtt
 						{
 							throw;
 						}
+
+						// As 'OnError' restores the connection asynchronously, make sure to wait
+						// for a new client before retry (with Max yield = 100)
+						for (var i = 0; _currentClient == clientAsync && !ct.IsCancellationRequested && i < 100; i++)
+						{
+							await Scheduler.Yield(ct);
+						}
 					}
-				} while (true);
+				} while (!ct.IsCancellationRequested);
 			}
 
 			/// <inheritdoc />
-			public void Dispose() => _subscription.Dispose();
+			public void Dispose()
+			{
+				this.Log().Info("Disposing MQTT subscription");
+
+				_restore.Dispose();
+				_subscription.Dispose();
+			}
 		}
 	}
 }

@@ -20,14 +20,13 @@ namespace SmartHomeDotNet.Mqtt
 		{
 			public const int IsActive = 0;
 
-			public const int IsInitializing = 1 << 1;
+			public const int IsPaused = 1 << 1;
+			public const int IsProbing = 1 << 2;
 			public const int ValueChanged = 1 << 4;
 			public const int ChildChanged = 1 << 5;
 
 			public const int Disposed = int.MaxValue; // must have other flags set!
 		}
-
-		//private readonly Subject<(MqttCacheTopic topic, string value)> _updates = new Subject<(MqttCacheTopic, string)>();
 
 		private readonly Subject<string> _localUpdates = new Subject<string>();
 		private readonly Subject<MqttTopicValues> _fullUpdates = new Subject<MqttTopicValues>();
@@ -73,6 +72,12 @@ namespace SmartHomeDotNet.Mqtt
 		private MqttCacheTopic(IMqttConnection connection, MqttCacheTopic parent, string level)
 		{
 			_connection = connection;
+			//var parentState = parent._state
+			//_state = parent._state & State.IsPaused;
+			if ((parent._state & (State.IsPaused | State.IsProbing)) == State.IsPaused)
+			{
+				_state = State.IsPaused;
+			}
 
 			Level = level;
 			Parent = parent;
@@ -81,6 +86,10 @@ namespace SmartHomeDotNet.Mqtt
 				: parent.Topic + "/" + level;
 		}
 
+		/// <summary>
+		/// Mark this topic as permanently subscribed, so it will be auto re-subscribed each time the connection is restored.
+		/// </summary>
+		/// <remarks>This won't create subscription when invoked, you have to run Hold/Flush updates sequence to enable subscription</remarks>
 		public void AddPermanentRootSubscription() 
 			=> Interlocked.Increment(ref _subscriptions);
 
@@ -90,7 +99,7 @@ namespace SmartHomeDotNet.Mqtt
 		/// <param name="level">The name of the sub topic</param>
 		/// <returns></returns>
 		public MqttCacheTopic GetChild(string level)
-			=> ImmutableInterlocked.GetOrAdd(ref _children, level, n => new MqttCacheTopic(_connection, this, n));
+			=> ImmutableInterlocked.GetOrAdd(ref _children, level, l => new MqttCacheTopic(_connection, this, l));
 
 		#region Initialization
 		/// <summary>
@@ -102,8 +111,8 @@ namespace SmartHomeDotNet.Mqtt
 			// Abort any pending probing
 			_probing.Disposable = Disposable.Empty;
 
-			// Set the 'IsInitializing' flag to prevent publication of updates
-			GoToInitializing();
+			// Set the 'IsPaused' flag to prevent publication of updates
+			SetState(State.IsPaused);
 
 			// Finally pause all sub topics
 			foreach (var child in _children.Values)
@@ -118,29 +127,39 @@ namespace SmartHomeDotNet.Mqtt
 		public void FlushUpdates()
 		{
 			// First re-enable all sub topics so they can start their probing
-			foreach (var child in _children.Values)
+			var children = _children.Values;
+			foreach (var child in children)
 			{
 				child.FlushUpdates();
 			}
 
 			// Then request to start probing
 			Probe(isReset: true);
+
+			// As when we create a child, we propagate the state of its parent, we must ensure that
+			// if a child was added while releasing state, it wont stay in "Initializing" state
+			foreach (var child in _children.Values.Except(children))
+			{
+				child.FlushUpdates();
+			}
 		}
 
 		private void Probe(bool isReset = false)
 		{
-			// Don't Subscribe to topic if no subscriptions active or if we already have value
-			if (_subscriptions == 0 
-				|| (!isReset && (HasValue || _state != State.IsActive)))
+			// Don't Subscribe to topic if no subscriptions active or if we are paused
+			if (_subscriptions == 0 // usually this should mean that isReset == true
+				|| (!isReset && _state != State.IsActive)) // We are subscribing to topic, but it's paused
 			{
+				if (isReset)
+				{
+					GoToActive();
+				}
+
 				return;
 			}
 
-			// Set as initializing
-			GoToInitializing();
-
-			// Determine when does the full state has been loaded
-			var isProbing = true;
+			// Set as probing
+			SetState(State.IsPaused | State.IsProbing);
 
 			_probing.Disposable = Observable
 				.DeferAsync(async ct =>
@@ -153,7 +172,7 @@ namespace SmartHomeDotNet.Mqtt
 					{
 						this.Log().Error(
 							$"Failed to subscribe to the topic {Topic}, however the topic remains available "
-							+ "(as it may be part of larger subscription). The connection may also have restarted by itself.", 
+							+ "(as it may be part of larger subscription). The connection may also have restarted by itself.",
 							e);
 					}
 
@@ -168,25 +187,51 @@ namespace SmartHomeDotNet.Mqtt
 				})
 				.Materialize() // mute errors
 				.FirstAsync()
-				.Finally(() => isProbing = false)
-				.Subscribe(_ => GoToActive(ref isProbing));
-
+				.Finally(() => RemoveState(State.IsProbing))
+				.Subscribe(_ => GoToActive());
 		}
 
-		private void GoToInitializing()
+		private void SetState(int stateFlags)
 		{
-			int state;
+			int current, updated;
 			do
 			{
-				state = _state;
-				if (state == State.Disposed)
+				current = _state;
+				if (current == State.Disposed)
 				{
 					throw new ObjectDisposedException(nameof(MqttCacheTopic));
 				}
-			} while (Interlocked.CompareExchange(ref _state, State.IsInitializing, state) != state);
+
+				if ((current & stateFlags) == stateFlags)
+				{
+					return; // State already set
+				}
+
+				updated = current & (~stateFlags) | stateFlags;
+			} while (Interlocked.CompareExchange(ref _state, updated, current) != current);
 		}
 
-		private void GoToActive(ref bool isProbing)
+		private void RemoveState(int stateFlags)
+		{
+			int current, updated;
+			do
+			{
+				current = _state;
+				if (current == State.Disposed)
+				{
+					throw new ObjectDisposedException(nameof(MqttCacheTopic));
+				}
+
+				if ((current & stateFlags) == 0)
+				{
+					return; // State not set
+				}
+
+				updated = current & (~stateFlags);
+			} while (Interlocked.CompareExchange(ref _state, updated, current) != current);
+		}
+
+		private void GoToActive()
 		{
 			do
 			{
@@ -221,45 +266,17 @@ namespace SmartHomeDotNet.Mqtt
 					return;
 				}
 
-				//else if (
-				//	(state & State.ValueChanged) == State.ValueChanged
-				//	&& Interlocked.CompareExchange(ref _concurrentState, State.IsActive, state) == state)
-				//{
-				//	// Successfully removed the "value changed" flag, so publish the updates
-				//	if (_subscriptions > 0)
-				//	{
-				//		_localUpdates.OnNext(_localValue);
-				//		_fullUpdates.OnNext(ToImmutable());
-				//	}
-
-				//	Parent?.OnChildUpdated(this, _localValue, isRetained: true);
-				//}
-				//else if (
-				//	(state & State.ChildChanged) == State.ChildChanged
-				//	&& Interlocked.CompareExchange(ref _concurrentState, State.IsActive, state) == state)
-				//{
-				//	// Successfully removed the "child changed" flag, so publish the update
-				//	if (_subscriptions > 0)
-				//	{
-				//		_fullUpdates.OnNext(ToImmutable());
-				//	}
-
-				//	Parent?.OnChildUpdated(this, _localValue, isRetained: true);
-				//}
-				//else if (Interlocked.CompareExchange(ref _concurrentState, State.IsActive, state) == state)
-				//{
-				//	// We successfully re-activated this topic
-				//	return;
-				//}
-			} while (isProbing);
+			} while ((_state & State.IsProbing) == State.IsProbing);
 		}
 		#endregion
 
 		#region [GetAnd]Observe topic values
 		public IObservable<MqttTopicValues> GetAndObserve() => Observable.Defer(() =>
 		{
-			Interlocked.Increment(ref _subscriptions);
-			Probe();
+			if (Interlocked.Increment(ref _subscriptions) == 1)
+			{
+				Probe();
+			}
 
 			var src = _fullUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
 
@@ -270,16 +287,20 @@ namespace SmartHomeDotNet.Mqtt
 
 		public IObservable<MqttTopicValues> Observe() => Observable.Defer(() =>
 		{
-			Interlocked.Increment(ref _subscriptions);
-			Probe();
+			if (Interlocked.Increment(ref _subscriptions) == 1)
+			{
+				Probe();
+			}
 
 			return _fullUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
 		});
 
 		public IObservable<string> GetAndObserveLocalValue() => Observable.Defer(() =>
 		{
-			Interlocked.Increment(ref _subscriptions);
-			Probe();
+			if (Interlocked.Increment(ref _subscriptions) == 1)
+			{
+				Probe();
+			}
 
 			var src = _localUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
 
@@ -290,8 +311,10 @@ namespace SmartHomeDotNet.Mqtt
 
 		public IObservable<string> ObserveLocalValue() => Observable.Defer(() =>
 		{
-			Interlocked.Increment(ref _subscriptions);
-			Probe();
+			if (Interlocked.Increment(ref _subscriptions) == 1)
+			{
+				Probe();
+			}
 
 			return _localUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
 		});
@@ -332,38 +355,9 @@ namespace SmartHomeDotNet.Mqtt
 
 		private void OnUpdated(string value, bool isRetained)
 		{
-			//while ((_concurrentState & (State.IsInitalizing | State.ValueChanged)) != 0)
-			//{
-			//	var current = _concurrentState;
-			//	if ((current & State.ValueChanged) != State.ValueChanged)
-			//	{
-			//		// Well, either we are disposed or the "value changed" flag has already been set, nothing to do!
-			//		return;
-			//	}
-
-			//	var updated = current | State.ValueChanged;
-			//	if (Interlocked.CompareExchange(ref _concurrentState, updated, current) == current)
-			//	{
-			//		// We successfully set the "value changed" flag, nothing to do else.
-			//		return;
-			//	}
-			//}
-
-			//if (_state.Value != State.Active)
-			//{
-			//	lock (_state)
-			//	{
-			//		if (_state.Value != State.Active)
-			//		{
-
-			//			return;
-			//		}
-			//	}
-
-
 			bool canPublish;
 			while (
-				!(canPublish = (_state & (State.IsInitializing | State.ValueChanged)) == 0)
+				!(canPublish = (_state & (State.IsPaused | State.ValueChanged)) == 0)
 				&& isRetained)
 			{
 				// Something prevent us to publish the **state** (i.e. !isRetained) updated
@@ -393,13 +387,9 @@ namespace SmartHomeDotNet.Mqtt
 
 		private void OnChildUpdated(MqttCacheTopic topic, string value, bool isRetained)
 		{
-			// First validate if we are allowed to publish this update
-			//   1. If not retained (i.e. "event")
-			//   2. 
-
 			bool canPublish;
 			while (
-				!(canPublish = (_state & (State.IsInitializing | State.ChildChanged)) == 0)
+				!(canPublish = (_state & (State.IsPaused | State.ChildChanged)) == 0)
 				&& isRetained)
 			{
 				// Something prevent us to publish the **state** (i.e. !isRetained) updated
@@ -478,11 +468,7 @@ namespace SmartHomeDotNet.Mqtt
 				Topic, 
 				localValue, 
 				childrenValues.ToImmutableDictionary(c => c.topic.Level, c => c.value),
-				isRetained
-				// changedTopic == null
-				// 	? HasValue // For the initial value we consider as retained only if we actually have any values
-				// 	: changedTopic._localValue == changedValue // For changes notif, we only have to check if the value was effectively persisted or not
-				);
+				isRetained);
 		}
 
 		/// <inheritdoc />
