@@ -19,6 +19,8 @@ namespace SmartHomeDotNet.Mqtt
 
 		public string ClientStatusTopic { get; set; } = "homeautomationengine/status";
 
+		public string ClientLastSeenTopic { get; set; } = "homeautomationengine/lastseen";
+
 		public IEnumerable<string> Validate()
 		{
 			if (Host.IsEmpty())
