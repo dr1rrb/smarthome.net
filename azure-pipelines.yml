@@ -6,56 +6,86 @@
 trigger:
 - master
 
-pool:
-  vmImage: 'windows-latest'
+jobs:
+  - job: Nuget
+    pool:
+      vmImage: 'windows-latest'
 
-variables:
-  buildConfiguration: 'Release'
+    variables:
+      buildConfiguration: 'Release'
 
-steps:
-- task: GitVersion@4
-  inputs:
-    updateAssemblyInfo: true
+    steps:
+    - task: GitVersion@4
+      inputs:
+        updateAssemblyInfo: true
 
-- script: dotnet build --configuration $(buildConfiguration) -p:PackageVersion=$(GitVersion.FullSemVer) src/SmartHomeDotNet.sln
-  displayName: 'dotnet build $(buildConfiguration)'
+    - script: dotnet build --configuration $(buildConfiguration) -p:PackageVersion=$(GitVersion.FullSemVer) src/SmartHomeDotNet.sln
+      displayName: 'dotnet build $(buildConfiguration)'
 
-- task: CopyFiles@2
-  inputs:
-    SourceFolder: 'src/SmartHomeDotNet.Package/bin/$(buildConfiguration)'
-    Contents: '**'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)/Nuget/Package'
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: 'src/SmartHomeDotNet.Package/bin/$(buildConfiguration)'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/Nuget/Package'
 
-- task: PublishBuildArtifacts@1
-  condition: always()
-  inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)/Nuget'
-    ArtifactName: 'Nuget'
-    publishLocation: 'Container'
+    - task: PublishBuildArtifacts@1
+      condition: always()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/Nuget'
+        ArtifactName: 'Nuget'
+        publishLocation: 'Container'
 
-- task: DockerInstaller@0
-  inputs:
-    dockerVersion: '17.09.0-ce'
+  - job: Docker_Windows
+    pool:
+      vmImage: 'windows-latest'
 
-- task: CmdLine@2
-  inputs:
-    script: |
-      docker build src/. -t smarthomedotnet:$(Build.BuildId)
+    steps:
+    - task: GitVersion@4
+      inputs:
+        updateAssemblyInfo: true
 
-- task: CmdLine@2
-  inputs:
-    script: |
-      docker save smarthomedotnet:$(Build.BuildId) -o smarthomedotnet-$(Build.BuildId).tar
+    - task: DockerInstaller@0
+      inputs:
+        dockerVersion: '17.09.0-ce'
 
-- task: CopyFiles@2
-  inputs:
-    SourceFolder: '.'
-    Contents: 'smarthomedotnet-$(Build.BuildId).tar'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)/Docker'
+    - task: CmdLine@2
+      inputs:
+        script: |
+          echo ##vso[task.setvariable variable=GitVersion.SemVer] $(GitVersion.SemVer) >> "$(Build.ArtifactStagingDirectory)\config.txt"
+          docker build src/. -t smarthomedotnet:$(Build.BuildId)
+          docker save smarthomedotnet:$(Build.BuildId) -o "$(Build.ArtifactStagingDirectory)\smarthomedotnet-$(Build.BuildId)-win.tar"
 
-- task: PublishBuildArtifacts@1
-  condition: always()
-  inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)/Docker'
-    ArtifactName: 'Docker'
-    publishLocation: 'Container'
+    - task: PublishBuildArtifacts@1
+      condition: always()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'Docker-Windows'
+        publishLocation: 'Container'
+
+  - job: Docker_Linux
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    # As of 2019/07/18 GitVersion is failing on Linux, even with v5.0.0.-beta5-9
+    # - task: GitVersion@4
+    #   inputs:
+    #     updateAssemblyInfo: true
+
+    - task: DockerInstaller@0
+      inputs:
+        dockerVersion: '17.09.0-ce'
+
+    - task: CmdLine@2
+      inputs:
+        # echo ##vso[task.setvariable variable=GitVersion.SemVer] $(GitVersion.SemVer) >> "$(Build.ArtifactStagingDirectory)/config.txt"
+        script: |
+          docker build src/. -t smarthomedotnet:$(Build.BuildId)
+          docker save smarthomedotnet:$(Build.BuildId) -o "$(Build.ArtifactStagingDirectory)/smarthomedotnet-$(Build.BuildId)-linux.tar"
+
+    - task: PublishBuildArtifacts@1
+      condition: always()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'Docker-Linux'
+        publishLocation: 'Container'
