@@ -24,11 +24,38 @@ steps:
   inputs:
     SourceFolder: 'src/SmartHomeDotNet.Package/bin/$(buildConfiguration)'
     Contents: '**'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)/Package'
-    
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/Nuget/Package'
+
 - task: PublishBuildArtifacts@1
   condition: always()
   inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-    ArtifactName: 'NugetPackages'
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/Nuget'
+    ArtifactName: 'Nuget'
+    publishLocation: 'Container'
+
+- task: DockerInstaller@0
+  inputs:
+    dockerVersion: '17.09.0-ce'
+
+- task: CmdLine@2
+  inputs:
+    script: |
+      docker build src/. -t smarthomedotnet:$(Build.BuildId)
+
+- task: CmdLine@2
+  inputs:
+    script: |
+      docker save smarthomedotnet:$(Build.BuildId) -o smarthomedotnet-$(Build.BuildId).tar
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '.'
+    Contents: 'smarthomedotnet-$(Build.BuildId).tar'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/Docker'
+
+- task: PublishBuildArtifacts@1
+  condition: always()
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/Docker'
+    ArtifactName: 'Docker'
     publishLocation: 'Container'
