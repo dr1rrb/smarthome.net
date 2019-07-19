@@ -1,12 +1,9 @@
-FROM microsoft/dotnet:2.1-aspnetcore-runtime AS base
+FROM mcr.microsoft.com/dotnet/core/aspnet:2.2 AS base
 WORKDIR /app
 EXPOSE 80
 
-FROM microsoft/dotnet:2.1-sdk AS build
-WORKDIR /src
-COPY ["SmartHomeDotNetHost/SmartHomeDotNetHost.csproj", "SmartHomeDotNetHost/"]"
-RUN dotnet restore "SmartHomeDotNetHost/SmartHomeDotNetHost.csproj"
-COPY . .
+FROM mcr.microsoft.com/dotnet/core/sdk:2.2 AS build
+COPY . /src
 WORKDIR "/src/SmartHomeDotNetHost"
 RUN dotnet build "SmartHomeDotNetHost.csproj" -c Release -o /app
 
