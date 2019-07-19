@@ -51,7 +51,7 @@ jobs:
     - task: CmdLine@2
       inputs:
         script: |
-          echo ##vso[task.setvariable variable=GitVersion.SemVer]$(GitVersion.SemVer) >> "$(Build.ArtifactStagingDirectory)\config.txt"
+          echo ##vso[task.setvariable variable=GitVersion.SemVer]$(GitVersion.SemVer)>> "$(Build.ArtifactStagingDirectory)\config.txt"
           docker build src/. -t smarthomedotnet:$(Build.BuildId)
           docker save smarthomedotnet:$(Build.BuildId) -o "$(Build.ArtifactStagingDirectory)\smarthomedotnet-$(Build.BuildId)-win.tar"
 
@@ -78,7 +78,7 @@ jobs:
 
     - task: CmdLine@2
       inputs:
-        # echo ##vso[task.setvariable variable=GitVersion.SemVer]$(GitVersion.SemVer) >> "$(Build.ArtifactStagingDirectory)/config.txt"
+        # echo ##vso[task.setvariable variable=GitVersion.SemVer]$(GitVersion.SemVer)>> "$(Build.ArtifactStagingDirectory)/config.txt"
         script: |
           docker build src/. -t smarthomedotnet:$(Build.BuildId)
           docker save smarthomedotnet:$(Build.BuildId) -o "$(Build.ArtifactStagingDirectory)/smarthomedotnet-$(Build.BuildId)-linux.tar"
