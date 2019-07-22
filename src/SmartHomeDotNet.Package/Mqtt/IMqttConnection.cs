@@ -10,6 +10,17 @@ namespace SmartHomeDotNet.Mqtt
 	{
 		IScheduler Scheduler { get; }
 
+		IObservable<MqttConnectionStatus> GetAndObserveStatus();
+
 		Task Subscribe(CancellationToken ct, string topic);
+	}
+
+	public enum MqttConnectionStatus
+	{
+		Disabled,
+
+		Connecting,
+
+		Connected
 	}
 }

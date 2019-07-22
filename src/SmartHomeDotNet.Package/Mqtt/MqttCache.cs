@@ -37,28 +37,6 @@ namespace SmartHomeDotNet.Mqtt
 				.Aggregate(Root, (level, levelName) => level.GetChild(levelName));
 		}
 
-		/// <summary>
-		/// Begins and initialization of this cache
-		/// </summary>
-		/// <returns>A disposable object which indicates when does the client is ready</returns>
-		public IDisposable Initialize()
-		{
-			if (Interlocked.Increment(ref _pendingInitializers) == 1)
-			{
-				Root.HoldUpdates();
-			}
-
-			return Disposable.Create(Complete);
-
-			void Complete()
-			{
-				if (Interlocked.Decrement(ref _pendingInitializers) == 0)
-				{
-					Root.FlushUpdates();
-				}
-			}
-		}
-
 		/// <inheritdoc />
 		public void Dispose() => Root.Dispose();
 	}

@@ -244,6 +244,7 @@ namespace SmartHomeDotNet.Mqtt
 			private readonly AsyncLock _clientGate = new AsyncLock(); // Unfortunately, sending multiple message concurrently causes some issue with System.Net.Mqtt
 
 			private readonly MqttBrokerConfig _config;
+			private readonly ReplaySubject<MqttConnectionStatus> _status;
 
 			private TaskCompletionSource<IMqttClient> _currentClient;
 
@@ -260,6 +261,8 @@ namespace SmartHomeDotNet.Mqtt
 				_config = config;
 				Scheduler = scheduler;
 
+				_status = new ReplaySubject<MqttConnectionStatus>(1, System.Reactive.Concurrency.Scheduler.Immediate);
+				_status.OnNext(MqttConnectionStatus.Disabled);
 				Topics = new MqttCache(this);
 				foreach (var rootTopic in rootTopics)
 				{
@@ -271,6 +274,8 @@ namespace SmartHomeDotNet.Mqtt
 
 			private void OnError(Exception error)
 			{
+				_status.OnNext(MqttConnectionStatus.Disabled);
+
 				this.Log().Error("MQTT client subscription failed, restore it", error);
 
 				_restore.Disposable = Scheduler.Schedule(() => Enable(isInitial: false));
@@ -298,69 +303,70 @@ namespace SmartHomeDotNet.Mqtt
 
 				var subscriptions = new CompositeDisposable(4);
 				try
-				{ 
-					using (Topics.Initialize())
+				{
+					_status.OnNext(MqttConnectionStatus.Connecting);
+
+					var config = new MqttConfiguration
 					{
-						var config = new MqttConfiguration
-						{
-							Port = _config.Port,
-							MaximumQualityOfService = MqttQualityOfService.ExactlyOnce,
-							KeepAliveSecs = (ushort) (Debugger.IsAttached ? 300 : 10)
-						};
-						var creds = new MqttClientCredentials(_config.ClientId, _config.Username, _config.Password);
-						var birth = new MqttApplicationMessage(_config.ClientStatusTopic, Encoding.UTF8.GetBytes("online"));
-						var will = new MqttLastWill(_config.ClientStatusTopic, MqttQualityOfService.AtLeastOnce, true, Encoding.UTF8.GetBytes("offline"));
-						var client = await System.Net.Mqtt.MqttClient.CreateAsync(_config.Host, config);
+						Port = _config.Port,
+						MaximumQualityOfService = MqttQualityOfService.ExactlyOnce,
+						KeepAliveSecs = (ushort) (Debugger.IsAttached ? 300 : 10)
+					};
+					var creds = new MqttClientCredentials(_config.ClientId, _config.Username, _config.Password);
+					var birth = new MqttApplicationMessage(_config.ClientStatusTopic, Encoding.UTF8.GetBytes("online"));
+					var will = new MqttLastWill(_config.ClientStatusTopic, MqttQualityOfService.AtLeastOnce, true, Encoding.UTF8.GetBytes("offline"));
+					var client = await System.Net.Mqtt.MqttClient.CreateAsync(_config.Host, config);
 
-						// First subscribe to the disconnection
-						Observable
-							.FromEventPattern<MqttEndpointDisconnected>(
-								h => client.Disconnected += h,
-								h => client.Disconnected -= h,
-								scheduler)
-							.Do(_ => OnError(new InvalidOperationException("Connection closed")))
-							.Subscribe(_ => { }, OnError)
-							.DisposeWith(subscriptions);
+					// First subscribe to the disconnection
+					Observable
+						.FromEventPattern<MqttEndpointDisconnected>(
+							h => client.Disconnected += h,
+							h => client.Disconnected -= h,
+							scheduler)
+						.Do(_ => OnError(new InvalidOperationException("Connection closed")))
+						.Subscribe(_ => { }, OnError)
+						.DisposeWith(subscriptions);
 
-						// Then subscribe to the message received
-						client
-							.MessageStream
-							.DistinctUntilChanged(MessageComparer.Instance) // WEIRD !
-							.ObserveOn(scheduler)
-							.Do(message => Topics.TryUpdate(message.Topic, message.Payload == null ? null : Encoding.UTF8.GetString(message.Payload), message.Retain))
-							.Subscribe(_ => { }, OnError)
-							.DisposeWith(subscriptions);
+					// Then subscribe to the message received
+					client
+						.MessageStream
+						.DistinctUntilChanged(MessageComparer.Instance) // WEIRD ! (probably dues to multiple connection from topic and child topics)
+						.ObserveOn(scheduler)
+						.Do(message => Topics.TryUpdate(message.Topic, message.Payload == null ? null : Encoding.UTF8.GetString(message.Payload), message.Retain))
+						.Subscribe(_ => { }, OnError)
+						.DisposeWith(subscriptions);
 
-						// Connect to broker
-						await client.ConnectAsync(creds, will, cleanSession: isInitial);
-						DisconnectAndDispose(client).DisposeWith(subscriptions);
+					// Connect to broker
+					await client.ConnectAsync(creds, will, cleanSession: isInitial);
+					DisconnectAndDispose(client).DisposeWith(subscriptions);
 
-						// Birth message
-						await client.PublishAsync(birth, MqttQualityOfService.AtLeastOnce, retain: true);
+					// Birth message
+					await client.PublishAsync(birth, MqttQualityOfService.AtLeastOnce, retain: true);
 
-						// Publish something on a regular basis to maintain the connection alive
-						// Workaround an issue with system.net.mqtt which seems to be disconnected without any notification
-						Observable
-							.Interval(_connectionActivePullingDelay, scheduler)
-							.Execute(
-								(ct2, _) => Publish(ct, _config.ClientLastSeenTopic, DateTimeOffset.Now.ToString("R"), QualityOfService.AtLeastOnce, retain: false), 
-								ConcurrentExecutionMode.AbortPrevious, 
-								scheduler)
-							.Subscribe(_ => { }, OnError)
-							.DisposeWith(subscriptions);
+					// Publish something on a regular basis to maintain the connection alive
+					// Workaround an issue with system.net.mqtt which seems to be disconnected without any notification
+					Observable
+						.Interval(_connectionActivePullingDelay, scheduler)
+						.Execute(
+							(ct2, _) => Publish(ct, _config.ClientLastSeenTopic, DateTimeOffset.Now.ToString("R"), QualityOfService.AtLeastOnce, retain: false), 
+							ConcurrentExecutionMode.AbortPrevious, 
+							scheduler)
+						.Subscribe(_ => { }, OnError)
+						.DisposeWith(subscriptions);
 
-						// We set the client as current, then we request to the cache to 'Probe' in order to
-						// initialize/restore all topics subscriptions
-						// Note: The cache is still in initializing mode, so it won't publish any update
-						_currentClient.TrySetResult(client);
+					// We set the client as current, then we request to the cache to 'Probe' in order to
+					// initialize/restore all topics subscriptions
+					// Note: The cache is still in initializing mode, so it won't publish any update
+					_currentClient.TrySetResult(client);
+					_status.OnNext(MqttConnectionStatus.Connected);
 
-						return subscriptions;
-					}
+					return subscriptions;
 				}
 				catch (Exception e)
 				{
 					this.Log().Error($"Failed to connect to MQTT broker, will retry in {_connectionInfiniteRetryDelay}.", e);
 
+					_status.OnNext(MqttConnectionStatus.Disabled);
 					_currentClient.TrySetException(e);
 					subscriptions.Dispose();
 
@@ -407,6 +413,10 @@ namespace SmartHomeDotNet.Mqtt
 				public int GetHashCode(MqttApplicationMessage obj)
 					=> obj?.Topic.GetHashCode() ?? 0;
 			}
+
+			/// <inheritdoc />
+			public IObservable<MqttConnectionStatus> GetAndObserveStatus()
+				=> _status.DistinctUntilChanged();
 
 			public async Task Subscribe(CancellationToken ct, string topic)
 			{
@@ -498,6 +508,10 @@ namespace SmartHomeDotNet.Mqtt
 
 				_restore.Dispose();
 				_subscription.Dispose();
+
+				_status.OnNext(MqttConnectionStatus.Disabled);
+				_status.OnCompleted();
+				_status.Dispose();
 			}
 		}
 	}
