@@ -10,6 +10,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder.Extensions;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.Utils;
 
@@ -17,27 +19,25 @@ namespace SmartHomeDotNet.Mqtt
 {
 	internal sealed class MqttCacheTopic : IDisposable
 	{
-		private static class State
+		private enum MqttTopicStatus
 		{
-			public const int IsActive = 0;
+			Disabled,
 
-			public const int IsPaused = 1 << 1;
-			public const int IsProbing = 1 << 2;
-			public const int ValueChanged = 1 << 4;
-			public const int ChildChanged = 1 << 5;
+			Buffering,
 
-			public const int Disposed = int.MaxValue; // must have other flags set!
+			Live
 		}
 
+		private readonly object _gate = new object();
 		private readonly Subject<string> _localUpdates = new Subject<string>();
 		private readonly Subject<MqttTopicValues> _fullUpdates = new Subject<MqttTopicValues>();
 		private readonly Subject<Unit> _msgReceived = new Subject<Unit>();
-		private readonly SerialDisposable _probing = new SerialDisposable();
-		private readonly IObservable<Unit> _activated = new Subject<Unit>();
+		private readonly Subject<bool> _hasSubscribers = new Subject<bool>();
 
 		private readonly IMqttConnection _connection;
+		private readonly IObservable<MqttTopicStatus> _status;
+		private readonly IDisposable _subscription;
 
-		private int _state;
 		private int _subscriptions;
 		private ImmutableDictionary<string, MqttCacheTopic> _children = ImmutableDictionary<string, MqttCacheTopic>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
 		private bool _hasLocalValue;
@@ -49,7 +49,7 @@ namespace SmartHomeDotNet.Mqtt
 		public string Topic { get; }
 
 		/// <summary>
-		/// The lats level of this topic
+		/// The level of this topic (i.e. the last part of the <see cref="Topic"/>)
 		/// </summary>
 		public string Level { get; }
 
@@ -74,18 +74,16 @@ namespace SmartHomeDotNet.Mqtt
 		private MqttCacheTopic(IMqttConnection connection, MqttCacheTopic parent, string level)
 		{
 			_connection = connection;
-			//var parentState = parent._state
-			//_state = parent._state & State.IsPaused;
-			if ((parent._state & (State.IsPaused | State.IsProbing)) == State.IsPaused)
-			{
-				_state = State.IsPaused;
-			}
 
 			Level = level;
 			Parent = parent;
 			Topic = parent.Topic == null //i.e. Root
 				? level
 				: parent.Topic + "/" + level;
+
+			var engine = Run().Replay(1, Scheduler.Immediate);
+			_subscription = engine.Connect();
+			_status = engine;
 		}
 
 		/// <summary>
@@ -103,73 +101,38 @@ namespace SmartHomeDotNet.Mqtt
 		public MqttCacheTopic GetChild(string level)
 			=> ImmutableInterlocked.GetOrAdd(ref _children, level, l => new MqttCacheTopic(_connection, this, l));
 
-		#region Initialization
-		/// <summary>
-		/// Prevents this topic to publish its **retained** updates
-		/// </summary>
-		/// <remarks>The messages will however still be propagated through the topic structure</remarks>
-		public void HoldUpdates()
+		#region Subscription
+		private IObservable<MqttTopicStatus> GetAndObserveStatus() => _status;
+
+		private IObservable<MqttTopicStatus> Run()
 		{
-			// Abort any pending probing
-			_probing.Disposable = Disposable.Empty;
+			return Observable
+				.CombineLatest(
+					_connection.GetAndObserveStatus().DistinctUntilChanged(),
+					_hasSubscribers.DistinctUntilChanged(),
+					GetStatus)
+				.Switch()
+				.Retry(TimeSpan.FromSeconds(5), _connection.Scheduler)
+				.DistinctUntilChanged();
 
-			// Set the 'IsPaused' flag to prevent publication of updates
-			SetState(State.IsPaused);
-
-			// Finally pause all sub topics
-			foreach (var child in _children.Values)
+			IObservable<MqttTopicStatus> GetStatus(MqttConnectionStatus status, bool hasSubscribers)
 			{
-				child.HoldUpdates();
-			}
-		}
-
-		/// <summary>
-		/// Publish the updates that was buffer while <see cref="HoldUpdates"/>.
-		/// </summary>
-		public void FlushUpdates()
-		{
-			// First re-enable all sub topics so they can start their probing
-			var children = _children.Values;
-			foreach (var child in children)
-			{
-				child.FlushUpdates();
-			}
-
-			// Then request to start probing
-			Probe(isReset: true);
-
-			// As when we create a child, we propagate the state of its parent, we must ensure that
-			// if a child was added while releasing state, it wont stay in "Initializing" state
-			foreach (var child in _children.Values.Except(children))
-			{
-				child.FlushUpdates();
-			}
-		}
-
-		private void Probe(bool isReset = false)
-		{
-			// Don't Subscribe to topic if no subscriptions active or if we are paused
-			if (_subscriptions == 0 // usually this should mean that isReset == true
-				|| (!isReset && _state != State.IsActive)) // We are subscribing to topic, but it's paused
-			{
-				if (isReset)
+				switch (status)
 				{
-					GoToActive();
+					case MqttConnectionStatus.Connected when hasSubscribers:
+						return Connect();
+
+					default:
+						return Observable.Return(MqttTopicStatus.Disabled, Scheduler.Immediate);
 				}
-
-				return;
 			}
 
-			// Abort previous subscription so the finally won't remove the IsProbing flag
-			_probing.Disposable = Disposable.Empty; 
-
-			// Set as probing
-			SetState(State.IsPaused | State.IsProbing);
-			
-			// Start probing
-			_probing.Disposable = Observable
-				.DeferAsync(async ct =>
+			IObservable<MqttTopicStatus> Connect()
+				=> Observable.Create<MqttTopicStatus>(async (observer, ct) =>
 				{
+					observer.OnNext(MqttTopicStatus.Buffering);
+
+					// Connect
 					try
 					{
 						await _connection.Subscribe(ct, Topic);
@@ -182,310 +145,179 @@ namespace SmartHomeDotNet.Mqtt
 							e);
 					}
 
-					var notUpdatedSinceAFew = this
-						._msgReceived
-						.Throttle(TimeSpan.FromMilliseconds(100), _connection.Scheduler);
-					var timeout = Observable
-						.Timer(HasValue ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(5), _connection.Scheduler)
-						.Select(_ => Unit.Default);
-
-					return notUpdatedSinceAFew.Amb(timeout);
-				})
-				.Materialize() // mute errors
-				.FirstAsync()
-				.Finally(() => RemoveState(State.IsProbing))
-				.Subscribe(_ => GoToActive());
-		}
-
-		private void SetState(int stateFlags)
-		{
-			int current, updated;
-			do
-			{
-				current = _state;
-				if (current == State.Disposed)
-				{
-					throw new ObjectDisposedException(nameof(MqttCacheTopic));
-				}
-
-				if ((current & stateFlags) == stateFlags)
-				{
-					return; // State already set
-				}
-
-				updated = current & (~stateFlags) | stateFlags;
-			} while (Interlocked.CompareExchange(ref _state, updated, current) != current);
-		}
-
-		private void RemoveState(int stateFlags)
-		{
-			int current, updated;
-			do
-			{
-				current = _state;
-				if (current == State.Disposed)
-				{
-					throw new ObjectDisposedException(nameof(MqttCacheTopic));
-				}
-
-				if ((current & stateFlags) == 0)
-				{
-					return; // State not set
-				}
-
-				updated = current & (~stateFlags);
-			} while (Interlocked.CompareExchange(ref _state, updated, current) != current);
-		}
-
-		private void GoToActive()
-		{
-			do
-			{
-				var state = _state;
-				if (state == State.Disposed)
-				{
-					return;
-				}
-				else if (Interlocked.CompareExchange(ref _state, State.IsActive, state) == state)
-				{
-					var valueChanged = (state & State.ValueChanged) == State.ValueChanged;
-					var childChanged = (state & State.ChildChanged) == State.ChildChanged;
-
-					if (_subscriptions > 0)
+					// Buffer "retained" changes
+					try
 					{
-						if (valueChanged)
-						{
-							_localUpdates.OnNext(_localValue);
-							_fullUpdates.OnNext(ToImmutable());
-						}
-						else if (childChanged)
-						{
-							_fullUpdates.OnNext(ToImmutable());
-						}
+						var notUpdatedSinceAFew = this
+							._msgReceived
+							.Throttle(TimeSpan.FromMilliseconds(100), _connection.Scheduler);
+						var timeout = Observable
+							.Timer(HasValue ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(5), _connection.Scheduler)
+							.Select(_ => Unit.Default);
+
+						await notUpdatedSinceAFew.Amb(timeout).FirstAsync().ToTask(ct);
+					}
+					catch (Exception e)
+					{
+						this.Log().Error($"Buffering of topic '{Topic}' failed, however the topic remains available.", e);
 					}
 
-					if (valueChanged || childChanged)
-					{
-						Parent?.OnChildUpdated(this, _localValue, isRetained: true);
-					}
+					observer.OnNext(MqttTopicStatus.Live);
+				});
+		}
 
-					return;
+		private IDisposable Subscribe()
+		{
+			if (Interlocked.Increment(ref _subscriptions) == 1)
+			{
+				lock (_hasSubscribers)
+				{
+					_hasSubscribers.OnNext(true);
 				}
+			}
 
-			} while ((_state & State.IsProbing) == State.IsProbing);
+			return Disposable.Create(Unsubscribe);
+
+			void Unsubscribe()
+			{
+				if (Interlocked.Decrement(ref _subscriptions) == 0)
+				{
+					lock (_hasSubscribers)
+					{
+						if (_subscriptions == 0)
+						{
+							_hasSubscribers.OnNext(false);
+						}
+					}
+				}
+			}
 		}
 		#endregion
 
 		#region [GetAnd]Observe topic values
-		public IObservable<MqttTopicValues> GetAndObserve() => Observable.Create<MqttTopicValues>(observer =>
-		{
-			var subscriptions = new CompositeDisposable(3);
+		public IObservable<MqttTopicValues> GetAndObserve() => Observe(prependInitial: true);
+		public IObservable<MqttTopicValues> Observe() => Observe(prependInitial: false);
 
-			if (Interlocked.Increment(ref _subscriptions) == 1)
+		public IObservable<MqttTopicValues> Observe(bool prependInitial)
+			=> Observable.Create<MqttTopicValues>(observer =>
 			{
-				Probe();
-			}
+				var subscriptions = new CompositeDisposable();
 
-			try
-			{
-				Disposable.Create(() => Interlocked.Decrement(ref _subscriptions)).DisposeWith(subscriptions);
-
-				var gate = new object();
-				var valuePublished = false;
-
-				_fullUpdates.Synchronize(gate).Do(_ => valuePublished = true).Subscribe(observer).DisposeWith(subscriptions);
-				_activated.FirstAsync().Subscribe(_ => TryPublishInitial()).DisposeWith(subscriptions);
-				if (_state == State.IsActive)
+				lock (_gate)
 				{
-					TryPublishInitial();
-				}
+					Observable
+						.CombineLatest(
+							_fullUpdates,
+							GetAndObserveStatus(),
+							(value, status) => (value, status))
+						.Where(x => x.status == MqttTopicStatus.Live)
+						.Select(x => x.value)
+						.Subscribe(observer)
+						.DisposeWith(subscriptions);
 
-				void TryPublishInitial()
-				{
-					if (HasValue && !valuePublished)
+					if (prependInitial && HasValue)
 					{
-						lock (gate)
-						{
-							if (!valuePublished)
-							{
-								valuePublished = true;
-								observer.OnNext(ToImmutable());
-							}
-						}
+						observer.OnNext(ToImmutable());
 					}
+
+					Subscribe().DisposeWith(subscriptions);
+
+					return subscriptions;
 				}
-			}
-			catch
+			});
+
+		public IObservable<string> GetAndObserveLocalValue() => ObserveLocalValue(prependInitial: true);
+		public IObservable<string> ObserveLocalValue() => ObserveLocalValue(prependInitial: false);
+
+		public IObservable<string> ObserveLocalValue(bool prependInitial)
+			=> Observable.Create<string>(observer =>
 			{
-				subscriptions.Dispose();
-				throw;
-			}
+				var subscriptions = new CompositeDisposable();
 
-			return subscriptions;
-		});
-
-		public IObservable<MqttTopicValues> Observe() => Observable.Defer(() =>
-		{
-			if (Interlocked.Increment(ref _subscriptions) == 1)
-			{
-				Probe();
-			}
-
-			return _fullUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
-		});
-
-		public IObservable<string> GetAndObserveLocalValue() => Observable.Create<string>(observer =>
-		{
-			var subscriptions = new CompositeDisposable(3);
-
-			if (Interlocked.Increment(ref _subscriptions) == 1)
-			{
-				Probe();
-			}
-
-			try
-			{
-				Disposable.Create(() => Interlocked.Decrement(ref _subscriptions)).DisposeWith(subscriptions);
-
-				var gate = new object();
-				var valuePublished = false;
-
-				_localUpdates.Synchronize(gate).Do(_ => valuePublished = true).Subscribe(observer).DisposeWith(subscriptions);
-				_activated.FirstAsync().Subscribe(_ => TryPublishInitial()).DisposeWith(subscriptions);
-				if (_state == State.IsActive)
+				lock (_gate)
 				{
-					TryPublishInitial();
-				}
+					Observable
+						.CombineLatest(
+							_localUpdates,
+							GetAndObserveStatus(),
+							(value, status) => (value, status))
+						.Where(x => x.status == MqttTopicStatus.Live)
+						.Select(x => x.value)
+						.Subscribe(observer)
+						.DisposeWith(subscriptions);
 
-				void TryPublishInitial()
-				{
-					if (_hasLocalValue && !valuePublished)
+					if (prependInitial && _hasLocalValue)
 					{
-						lock (gate)
-						{
-							if (!valuePublished)
-							{
-								valuePublished = true;
-								observer.OnNext(_localValue);
-							}
-						}
+						observer.OnNext(_localValue);
 					}
+
+					Subscribe().DisposeWith(subscriptions);
+
+					return subscriptions;
 				}
-			}
-			catch
-			{
-				subscriptions.Dispose();
-				throw;
-			}
-
-			return subscriptions;
-		});
-
-		public IObservable<string> ObserveLocalValue() => Observable.Defer(() =>
-		{
-			if (Interlocked.Increment(ref _subscriptions) == 1)
-			{
-				Probe();
-			}
-
-			return _localUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
-		});
+			});
 		#endregion
 
 		#region Update
-		public bool TryUpdate(string value, bool retained)
+		public bool TryUpdate(string value, bool isRetained)
 		{
-			// If we already had a retained value (stored as local), we are still persist it, no matter the 'retained' flag
-			// However, I'm not sure if this is really required nor even a good idea ...
-			// Note: This is needed as HA seems to not publish updates as retained (missing config?)
-			retained |= _hasLocalValue;
-
-			if (!retained)
+			lock (_gate)
 			{
-				//_updates.OnNext((this, value));
-				//Parent?.ChildUpdated(this, value, retained);
-				OnUpdated(value, retained);
+				// If we already had a retained value (stored as local), we are still persist it, no matter the 'retained' flag
+				// However, I'm not sure if this is really required nor even a good idea ...
+				// Note: This is needed as HA seems to not publish updates as retained (missing config?)
+				isRetained |= _hasLocalValue;
 
-				return true;
-			}
-			else if (_hasLocalValue && (_localValue?.Equals(value, StringComparison.InvariantCultureIgnoreCase) ?? value == null))
-			{
-				return false;
-			}
-			else
-			{
-				_localValue = value;
-				_hasLocalValue = true; // set it after, so we don't have use a lock on state when checking the value
+				if (!isRetained)
+				{
+					OnUpdated();
 
-				//_updates.OnNext((this, value));
-				//Parent?.ChildUpdated(this, value, retained);
-				OnUpdated(value, retained);
+					return true;
+				}
+				else if (_hasLocalValue && (_localValue?.Equals(value, StringComparison.InvariantCultureIgnoreCase) ?? value == null))
+				{
+					return false;
+				}
+				else
+				{
+					_localValue = value;
+					_hasLocalValue = true; // set it after, so we don't have use a lock on state when checking the value
 
-				return true;
-			}
-		}
+					OnUpdated();
 
-		private void OnUpdated(string value, bool isRetained)
-		{
-			bool canPublish;
-			while (
-				!(canPublish = (_state & (State.IsPaused | State.ValueChanged)) == 0)
-				&& isRetained)
-			{
-				// Something prevent us to publish the **state** (i.e. !isRetained) updated
-
-				var state = _state;
-
-				if (state == State.Disposed)
-					return; // We are disposed, abort.
-
-				if ((state & State.ValueChanged) == State.ValueChanged)
-					break; // The "value changed" flag has already been set, continue with canPublish == false
-
-				if (Interlocked.CompareExchange(ref _state, state | State.ValueChanged, state) == state)
-					break; // We successfully set the "value changed" flag, continue with canPublish == false
+					return true;
+				}
 			}
 
-			_msgReceived.OnNext(Unit.Default);
-
-			if (canPublish && _subscriptions > 0) // Do not 'ToImmutable' if no subscribers
+			void OnUpdated()
 			{
-				_localUpdates.OnNext(value);
-				_fullUpdates.OnNext(ToImmutable(this, value, isRetained));
-			}
+				// _gate is already acquired
 
-			Parent?.OnChildUpdated(this, value, isRetained);
+				_msgReceived.OnNext(Unit.Default);
+
+				if (_subscriptions > 0) // Do not 'ToImmutable' if no subscribers
+				{
+					_localUpdates.OnNext(value);
+					_fullUpdates.OnNext(ToImmutable(this, value, isRetained));
+				}
+
+				Parent?.OnChildUpdated(this, value, isRetained);
+			}
 		}
 
 		private void OnChildUpdated(MqttCacheTopic topic, string value, bool isRetained)
 		{
-			bool canPublish;
-			while (
-				!(canPublish = (_state & (State.IsPaused | State.ChildChanged)) == 0)
-				&& isRetained)
+			lock (_gate)
 			{
-				// Something prevent us to publish the **state** (i.e. !isRetained) updated
+				_msgReceived.OnNext(Unit.Default);
 
-				var state = _state;
+				if (_subscriptions > 0) // _subscriptions > 0: Do not 'ToImmutable' if no subscribers
+				{
+					_fullUpdates.OnNext(ToImmutable(topic, value, isRetained));
+				}
 
-				if (state == State.Disposed)
-					return; // We are disposed, abort.
-
-				if ((state & State.ChildChanged) == State.ChildChanged)
-					break; // The "child changed" flag has already been set, continue with canPublish == false
-
-				if (Interlocked.CompareExchange(ref _state, state | State.ChildChanged, state) == state)
-					break; // We successfully set the "child changed" flag, continue with canPublish == false
+				Parent?.OnChildUpdated(topic, value, isRetained);
 			}
-
-			_msgReceived.OnNext(Unit.Default);
-
-			if (canPublish && _subscriptions > 0) // _subscriptions > 0: Do not 'ToImmutable' if no subscribers
-			{
-				_fullUpdates.OnNext(ToImmutable(topic, value, isRetained));
-			}
-
-			Parent?.OnChildUpdated(topic, value, isRetained);
 		}
 		#endregion
 
@@ -546,7 +378,7 @@ namespace SmartHomeDotNet.Mqtt
 		/// <inheritdoc />
 		public void Dispose()
 		{
-			_probing.Dispose();
+			_subscription.Dispose();
 			_children.Values.DisposeAllOrLog("Failed to dispose a sub topic of " + Topic);
 		}
 	}
