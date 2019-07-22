@@ -215,7 +215,6 @@ namespace SmartHomeDotNet.Mqtt
 			_subscription.Dispose();
 		}
 
-
 		private class Subscription : IDisposable
 		{
 			private readonly MqttClient _owner;
