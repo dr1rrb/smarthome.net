@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -32,6 +33,7 @@ namespace SmartHomeDotNet.Mqtt
 		private readonly Subject<MqttTopicValues> _fullUpdates = new Subject<MqttTopicValues>();
 		private readonly Subject<Unit> _msgReceived = new Subject<Unit>();
 		private readonly SerialDisposable _probing = new SerialDisposable();
+		private readonly IObservable<Unit> _activated = new Subject<Unit>();
 
 		private readonly IMqttConnection _connection;
 
@@ -158,9 +160,13 @@ namespace SmartHomeDotNet.Mqtt
 				return;
 			}
 
+			// Abort previous subscription so the finally won't remove the IsProbing flag
+			_probing.Disposable = Disposable.Empty; 
+
 			// Set as probing
 			SetState(State.IsPaused | State.IsProbing);
-
+			
+			// Start probing
 			_probing.Disposable = Observable
 				.DeferAsync(async ct =>
 				{
@@ -271,18 +277,51 @@ namespace SmartHomeDotNet.Mqtt
 		#endregion
 
 		#region [GetAnd]Observe topic values
-		public IObservable<MqttTopicValues> GetAndObserve() => Observable.Defer(() =>
+		public IObservable<MqttTopicValues> GetAndObserve() => Observable.Create<MqttTopicValues>(observer =>
 		{
+			var subscriptions = new CompositeDisposable(3);
+
 			if (Interlocked.Increment(ref _subscriptions) == 1)
 			{
 				Probe();
 			}
 
-			var src = _fullUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
+			try
+			{
+				Disposable.Create(() => Interlocked.Decrement(ref _subscriptions)).DisposeWith(subscriptions);
 
-			return _state == State.IsActive && HasValue
-				? src.StartWith(Scheduler.Immediate, ToImmutable())
-				: src;
+				var gate = new object();
+				var valuePublished = false;
+
+				_fullUpdates.Synchronize(gate).Do(_ => valuePublished = true).Subscribe(observer).DisposeWith(subscriptions);
+				_activated.FirstAsync().Subscribe(_ => TryPublishInitial()).DisposeWith(subscriptions);
+				if (_state == State.IsActive)
+				{
+					TryPublishInitial();
+				}
+
+				void TryPublishInitial()
+				{
+					if (HasValue && !valuePublished)
+					{
+						lock (gate)
+						{
+							if (!valuePublished)
+							{
+								valuePublished = true;
+								observer.OnNext(ToImmutable());
+							}
+						}
+					}
+				}
+			}
+			catch
+			{
+				subscriptions.Dispose();
+				throw;
+			}
+
+			return subscriptions;
 		});
 
 		public IObservable<MqttTopicValues> Observe() => Observable.Defer(() =>
@@ -295,18 +334,51 @@ namespace SmartHomeDotNet.Mqtt
 			return _fullUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
 		});
 
-		public IObservable<string> GetAndObserveLocalValue() => Observable.Defer(() =>
+		public IObservable<string> GetAndObserveLocalValue() => Observable.Create<string>(observer =>
 		{
+			var subscriptions = new CompositeDisposable(3);
+
 			if (Interlocked.Increment(ref _subscriptions) == 1)
 			{
 				Probe();
 			}
 
-			var src = _localUpdates.Finally(() => Interlocked.Decrement(ref _subscriptions));
+			try
+			{
+				Disposable.Create(() => Interlocked.Decrement(ref _subscriptions)).DisposeWith(subscriptions);
 
-			return _state == State.IsActive && _hasLocalValue
-				? src.StartWith(Scheduler.Immediate, _localValue)
-				: src;
+				var gate = new object();
+				var valuePublished = false;
+
+				_localUpdates.Synchronize(gate).Do(_ => valuePublished = true).Subscribe(observer).DisposeWith(subscriptions);
+				_activated.FirstAsync().Subscribe(_ => TryPublishInitial()).DisposeWith(subscriptions);
+				if (_state == State.IsActive)
+				{
+					TryPublishInitial();
+				}
+
+				void TryPublishInitial()
+				{
+					if (_hasLocalValue && !valuePublished)
+					{
+						lock (gate)
+						{
+							if (!valuePublished)
+							{
+								valuePublished = true;
+								observer.OnNext(_localValue);
+							}
+						}
+					}
+				}
+			}
+			catch
+			{
+				subscriptions.Dispose();
+				throw;
+			}
+
+			return subscriptions;
 		});
 
 		public IObservable<string> ObserveLocalValue() => Observable.Defer(() =>
@@ -343,7 +415,7 @@ namespace SmartHomeDotNet.Mqtt
 			else
 			{
 				_localValue = value;
-				_hasLocalValue = true;
+				_hasLocalValue = true; // set it after, so we don't have use a lock on state when checking the value
 
 				//_updates.OnNext((this, value));
 				//Parent?.ChildUpdated(this, value, retained);
