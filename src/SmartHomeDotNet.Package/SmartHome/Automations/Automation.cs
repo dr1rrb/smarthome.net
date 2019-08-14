@@ -60,6 +60,7 @@ namespace SmartHomeDotNet.SmartHome.Automations
 
 					return host.GetAndObserveIsEnabled(this);
 				})
+				.DistinctUntilChanged()
 				.Do(isEnabled =>
 				{
 					// Make sure to always abort the pending execution, even if 'Enable()' fails

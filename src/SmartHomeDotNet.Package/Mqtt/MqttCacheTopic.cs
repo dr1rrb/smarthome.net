@@ -202,20 +202,21 @@ namespace SmartHomeDotNet.Mqtt
 
 				lock (_gate)
 				{
+					IObservable<MqttTopicValues> values = _fullUpdates;
+					if (prependInitial)
+					{
+						values = values.StartWith(Scheduler.Immediate, ToImmutable());
+					}
+
 					Observable
 						.CombineLatest(
-							_fullUpdates,
+							values,
 							GetAndObserveStatus(),
 							(value, status) => (value, status))
 						.Where(x => x.status == MqttTopicStatus.Live)
 						.Select(x => x.value)
 						.Subscribe(observer)
 						.DisposeWith(subscriptions);
-
-					if (prependInitial && HasValue)
-					{
-						observer.OnNext(ToImmutable());
-					}
 
 					Subscribe().DisposeWith(subscriptions);
 
@@ -233,20 +234,21 @@ namespace SmartHomeDotNet.Mqtt
 
 				lock (_gate)
 				{
+					IObservable<string> values = _localUpdates;
+					if (prependInitial)
+					{
+						values = values.StartWith(Scheduler.Immediate, _localValue);
+					}
+
 					Observable
 						.CombineLatest(
-							_localUpdates,
+							values,
 							GetAndObserveStatus(),
 							(value, status) => (value, status))
 						.Where(x => x.status == MqttTopicStatus.Live)
 						.Select(x => x.value)
 						.Subscribe(observer)
 						.DisposeWith(subscriptions);
-
-					if (prependInitial && _hasLocalValue)
-					{
-						observer.OnNext(_localValue);
-					}
 
 					Subscribe().DisposeWith(subscriptions);
 
