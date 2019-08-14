@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,14 +73,26 @@ namespace SmartHomeDotNet.Mqtt
 			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
 			config.Name = automation.Name;
 			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
+
+			// When we publish devices, Home assistant assume them as enabled.
+			// Here we only republish the current state if any.
+			var currentState = await IsAutomationEnabled(automation).FirstAsync().ToTask(ct);
+			await _mqtt.Publish(ct, GetStateTopic(automation), currentState ? "enabled" : "disabled", QualityOfService.AtLeastOnce, retain: !_mqtt.IsTestEnvironment);
 		}
 
 		/// <inheritdoc />
 		public IObservable<bool> GetAndObserveIsEnabled(Automation automation)
 		{
-			var isClientEnabled = _mqtt
-				.GetAndObserveIsEnabled();
-			var isAutomationEnabled = _mqtt
+			var isClientEnabled = _mqtt.GetAndObserveIsEnabled();
+			var isAutomationEnabled = IsAutomationEnabled(automation);
+
+			return Observable
+				.CombineLatest(isClientEnabled, isAutomationEnabled, (c, a) => c & a)
+				.DistinctUntilChanged();
+		}
+
+		private IObservable<bool> IsAutomationEnabled(Automation automation)
+			=> _mqtt
 				.GetAndObserveTopic(GetTopic(automation))
 				.Select(topic =>
 				{
@@ -87,11 +100,6 @@ namespace SmartHomeDotNet.Mqtt
 
 					return s == null || s == "enabled"; // If not configured, we assumed enabled
 				});
-
-			return Observable
-				.CombineLatest(isClientEnabled, isAutomationEnabled, (c, a) => c & a)
-				.DistinctUntilChanged();
-		}
 
 		// TODO: Cache those
 		private string GetId(Automation automation) => _invalidChars.Replace(automation.Id, "_").ToLowerInvariant();
