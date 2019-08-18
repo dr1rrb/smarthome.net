@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using SmartHomeDotNet.Utils;
 
@@ -41,14 +43,27 @@ namespace SmartHomeDotNet.Hass
 		/// <param name="domain">The target domain of this call</param>
 		/// <param name="service">The service to invoke</param>
 		/// <param name="parameters">The parameters of the service (will be Json encoded), or `null` if no parameters</param>
-		/// <returns>An asynchronous <see cref="ApiCall"/>.</returns>
-		public ApiCall Execute(string domain, string service, object parameters)
+		/// <returns>An asynchronous <see cref="AsyncContextOperation"/>.</returns>
+		public AsyncContextOperation Execute(string domain, string service, object parameters, TimeSpan? transition = null)
 		{
-			var content = parameters == null
-				? null
-				: new StringContent(JsonConvert.SerializeObject(parameters), Encoding.UTF8, "application/json");
+			if (transition.GetValueOrDefault() > TimeSpan.Zero)
+			{
+				return AsyncContextOperation.StartNew(Send, ct => Task.Delay(transition.Value, ct));
+			}
+			else
+			{
+				return AsyncContextOperation.StartNew(Send);
+			}
 
-			return new ApiCall(_client, $"https://{_host}/api/services/{domain}/{service}", content);
+			async Task Send(CancellationToken ct)
+			{
+				var content = parameters == null
+					? null
+					: new StringContent(JsonConvert.SerializeObject(parameters), Encoding.UTF8, "application/json");
+				var response = await _client.PostAsync($"https://{_host}/api/services/{domain}/{service}", content, ct);
+
+				response.EnsureSuccessStatusCode();
+			}
 		}
 	}
 }

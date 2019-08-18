@@ -39,29 +39,20 @@ namespace SmartHomeDotNet.Gpio
 			switch (command ?? throw new ArgumentNullException(nameof(command)))
 			{
 				case TurnOn _ when pin is IOutputPin op:
-					op.Set(AsyncContext.CurrentToken, true);
-					break;
+					return AsyncContextOperation.FromAction(() => op.Set(AsyncContext.CurrentToken, true), $"Turning on pin {pin.PinNumber}");
 
 				case TurnOff _ when pin is IOutputPin op:
-					op.Set(AsyncContext.CurrentToken, false);
-					break;
+					return AsyncContextOperation.FromAction(() => op.Set(AsyncContext.CurrentToken, false), $"Turning off pin {pin.PinNumber}");
 
 				default:
 					throw new NotSupportedException($"Command {command.GetType().Name} is not supported (or not supported for device {device.Id}).");
 			}
-
-			return AsyncContextOperation.Completed;
 		}
 
 		/// <inheritdoc />
 		public AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices)
 		{
-			foreach (var device in devices)
-			{
-				Execute(command, device);
-			}
-
-			return AsyncContextOperation.Completed;
+			return AsyncContextOperation.WhenAll(devices.Select(dev => Execute(command, dev)));
 		}
 
 		private Pin GetPin(IDevice device)

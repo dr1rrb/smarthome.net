@@ -64,15 +64,14 @@ namespace SmartHomeDotNet.Utils
 		private readonly AsyncContext _previous;
 		private readonly CancellationTokenSource _ct;
 
-		private int _pending;
 		private int _state = State.Active;
-		private ImmutableList<AggregateException> _exceptions = ImmutableList<AggregateException>.Empty;
+		private ImmutableHashSet<AsyncContextOperation> _operations = ImmutableHashSet<AsyncContextOperation>.Empty;
 
 		private static class State
 		{
 			public const int Active = 0;
 			public const int Finalizing = 1;
-			public const int Disposed = 2;
+			public const int Disposed = 256;
 		}
 
 		/// <summary>
@@ -151,74 +150,98 @@ namespace SmartHomeDotNet.Utils
 		{
 			Interlocked.CompareExchange(ref _state, State.Finalizing, State.Active);
 
-			return _pending == 0
+			UpdateState();
+
+			return _operations.Count == 0
 				? Task.CompletedTask
 				: _completed.Task;
 		}
 
-		/// <summary>
-		/// Registers an asynchronous operation on this context
-		/// </summary>
-		/// <param name="task">The asynchronous operation</param>
-		public IDisposable Register(Task task)
+		public void Register(Task task)
 		{
 			CheckDisposed();
 			CheckCurrent();
 
-			if (task.IsCompleted)
+			AsyncContextOperation.FromTask(task); // Will register itself on this context (as it's the Current)
+		}
+
+		internal void Register(AsyncContextOperation operation)
+		{
+			CheckDisposed();
+			CheckCurrent();
+
+			ImmutableHashSet<AsyncContextOperation> capture, updated;
+			do
 			{
-				TouchException(task);
-				return Disposable.Empty;
-			}
+				capture = _operations;
+				updated = capture.Add(operation);
 
-			// We increment counter BEFORE validating state, so we avoid concurrency issue
-			// with the 'WaitForCompletion' (which does the opposite)
-			Interlocked.Increment(ref _pending);
+				if (capture.Count == updated.Count)
+				{
+					return; // operation is already present
+				}
 
+				if (_state != State.Active) // The closest to the effective add in order to reduce the risk to need a rollback
+				{
+					throw new InvalidOperationException("The AsyncContext is already completing, you cannot register more tasks.");
+				}
+
+			} while (Interlocked.CompareExchange(ref _operations, updated, capture) != capture);
+
+			// The state was updated while we where adding the operation ... rollback and throw!
 			if (_state != State.Active)
 			{
-				ReleaseOne();
+				UnRegisterCore(operation);
 				throw new InvalidOperationException("The AsyncContext is already completing, you cannot register more tasks.");
 			}
 
-			var release = Disposable.Create(ReleaseOne);
-
-			task.ContinueWith(Release, (this, release), TaskContinuationOptions.AttachedToParent | TaskContinuationOptions.ExecuteSynchronously);
-
-			return release;
+			UpdateState();
 		}
 
-		private void ReleaseOne()
+		internal void UnRegister(AsyncContextOperation operation)
 		{
-			// Here again we make sure to change '_pending' then '_state' to avoid concurrency issue
-			// with the 'WaitForCompletion' (which does the opposite)
-			if (Interlocked.Decrement(ref _pending) == 0 && _state != State.Active)
+			UnRegisterCore(operation);
+			UpdateState();
+		}
+
+		internal void UnRegisterCore(AsyncContextOperation operation)
+		{
+			ImmutableHashSet<AsyncContextOperation> capture, updated;
+			do
 			{
-				_completed.TrySetResult(null);
-			}
-		}
+				capture = _operations;
+				updated = capture.Remove(operation);
 
-		private static void Release(Task t, object state)
-		{
-			var (that, registration) = (((AsyncContext, IDisposable))state);
-
-			that.TouchException(t);
-			registration.Dispose();
-		}
-
-		private void TouchException(Task task)
-		{
-			if (task.IsFaulted)
-			{
-				do
+				if (capture.Count == updated.Count)
 				{
-					var captured = _exceptions;
-					var updated = captured.Add(task.Exception);
-					if (Interlocked.CompareExchange(ref _exceptions, updated, captured) == captured)
-					{
-						return;
-					}
-				} while (true);
+					return;
+				}
+			} while (Interlocked.CompareExchange(ref _operations, updated, capture) != capture);
+		}
+
+		internal void UpdateState()
+		{
+			if (_state == State.Active)
+			{
+				return;
+			}
+
+			ImmutableHashSet<AsyncContextOperation> capture, updated;
+			do
+			{
+				capture = _operations;
+				updated = capture.Except(capture.Where(o => !o.IsRunning));
+
+				if (capture.Count == updated.Count)
+				{
+					break;
+				}
+
+			} while (Interlocked.CompareExchange(ref _operations, updated, capture) != capture);
+
+			if (updated.Count == 0)
+			{
+				_completed.TrySetResult(default);
 			}
 		}
 
@@ -246,6 +269,14 @@ namespace SmartHomeDotNet.Utils
 			if (Interlocked.Exchange(ref _state, State.Disposed) != State.Disposed)
 			{
 				_current.Value = _previous;
+
+				var pending = _operations;
+				_operations = ImmutableHashSet<AsyncContextOperation>.Empty;
+
+				foreach (var operation in pending)
+				{
+					operation.Cancel();
+				}
 				_ct.Cancel();
 			}
 		}
