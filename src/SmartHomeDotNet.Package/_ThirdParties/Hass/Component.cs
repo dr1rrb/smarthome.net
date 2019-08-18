@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Net.Sockets;
 
 namespace SmartHomeDotNet.Hass
 {
@@ -14,7 +15,13 @@ namespace SmartHomeDotNet.Hass
 
 		public const string Light = "light";
 
+		public const string Fan = "fan";
+
 		public const string Sensor = "sensor";
+
+		public const string InputBoolean = "input_boolean";
+
+		public const string InputSelect = "input_select";
 
 		/// <summary>
 		/// The name of this component

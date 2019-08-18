@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 
 namespace SmartHomeDotNet.Hass.Entities
@@ -7,7 +8,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// A marker interface for <see cref="InputBoolean"/> device which allows type inference
 	/// </summary>
-	public interface IInputBoolean : IDevice<IInputBoolean>
+	public interface IInputBoolean : IDevice<IInputBoolean>, ISupport<TurnOn>, ISupport<TurnOff>, ISupport<Toggle>
 	{
 	}
 

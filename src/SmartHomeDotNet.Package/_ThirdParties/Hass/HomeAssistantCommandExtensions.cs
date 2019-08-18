@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using SmartHomeDotNet.Hass.Commands;
 using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.Utils;
@@ -10,8 +11,9 @@ namespace SmartHomeDotNet.Hass
 {
 	internal static class HomeAssistantCommandExtensions
 	{
-		public static Dictionary<string, object> ToParameters(this TurnOn on, Component component, IEnumerable<IDevice> deviceId)
+		public static Dictionary<string, object> ToParameters(this TurnOn on, Component component, IEnumerable<IDevice> deviceId, out TimeSpan? transition)
 		{
+			transition = null;
 			switch (component)
 			{
 				case Component.Light:
@@ -19,50 +21,92 @@ namespace SmartHomeDotNet.Hass
 						.Add(deviceId)
 						.AddIfValue("brightness", on.Level, level => (int)(level * 255))
 						.AddIfValue("rgb_color", on.Color)
-						.AddIfValue("transition", on.Duration);
+						.AddIfValue("transition", on.Duration, out transition);
 
+				case Component.InputBoolean:
 				case Component.Switch:
+				case Component.Fan:
 					return new Dictionary<string, object>()
 						.Add(deviceId);
 
 				default:
-					throw new NotSupportedException($"Component '{component}' does not support command TurnOn, but on or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
+					throw new NotSupportedException($"Component '{component}' does not support command TurnOn, but one or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
 			}
 		}
 
-		public static Dictionary<string, object> ToParameters(this TurnOff off, Component component, IEnumerable<IDevice> deviceId)
+		public static Dictionary<string, object> ToParameters(this TurnOff off, Component component, IEnumerable<IDevice> deviceId, out TimeSpan? transition)
 		{
+			transition = null;
 			switch (component)
 			{
 				case Component.Light:
 					return new Dictionary<string, object>()
 						.Add(deviceId)
-						.AddIfValue("transition", off.Duration);
+						.AddIfValue("transition", off.Duration, out transition);
 
+				case Component.InputBoolean:
 				case Component.Switch:
+				case Component.Fan:
 					return new Dictionary<string, object>()
 						.Add(deviceId);
 
 				default:
-					throw new NotSupportedException($"Component '{component}' does not support command TurnOff, but on or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
+					throw new NotSupportedException($"Component '{component}' does not support command TurnOff, but one or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
 			}
 		}
 
-		public static Dictionary<string, object> ToParameters(this Toggle toggle, Component component, IEnumerable<IDevice> deviceId)
+		public static Dictionary<string, object> ToParameters(this Toggle toggle, Component component, IEnumerable<IDevice> deviceId, out TimeSpan? transition)
 		{
+			transition = null;
 			switch (component)
 			{
 				case Component.Light:
 					return new Dictionary<string, object>()
 						.Add(deviceId)
-						.AddIfValue("transition", toggle.Duration);
+						.AddIfValue("transition", toggle.Duration, out transition);
 
+				case Component.InputBoolean:
 				case Component.Switch:
+				case Component.Fan:
 					return new Dictionary<string, object>()
 						.Add(deviceId);
 
 				default:
-					throw new NotSupportedException($"Component '{component}' does not support command Toggle, but on or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
+					throw new NotSupportedException($"Component '{component}' does not support command Toggle, but one or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
+			}
+		}
+
+		public static Dictionary<string, object> ToParameters(this ISelectCommand select, Component component, IEnumerable<IDevice> deviceId)
+		{
+			var value = select.Value?.ToString() ?? throw new ArgumentNullException(nameof(select.Value), "The selected value cannot be 'null'");
+
+			switch (component)
+			{
+				case Component.InputSelect:
+					return new Dictionary<string, object>
+						{
+							{"option", value}
+						}
+						.Add(deviceId);
+
+				default:
+					throw new NotSupportedException($"Component '{component}' does not support command Select, but one or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
+			}
+		}
+
+		public static Dictionary<string, object> ToParameters(this SetSpeed setSpeed, Component component, IEnumerable<IDevice> deviceId)
+		{
+			switch (component)
+			{
+				case Component.Fan:
+					return new Dictionary<string, object>
+						{
+							{"speed", setSpeed.Speed.ToString().ToLowerInvariant()}
+						}
+						.Add(deviceId);
+
+				default:
+					throw new NotSupportedException($"Component '{component}' does not support command SetSpeed, but one or more device tries to use it ({deviceId.Select(d => d.Id.ToString()).JoinBy(", ")})");
 			}
 		}
 
@@ -94,6 +138,12 @@ namespace SmartHomeDotNet.Hass
 
 		public static Dictionary<string, object> AddIfValue(this Dictionary<string, object> parameters, string key, TimeSpan? value)
 			=> AddIfValue<TimeSpan>(parameters, key, value, d => (int) d.TotalSeconds);
+
+		public static Dictionary<string, object> AddIfValue(this Dictionary<string, object> parameters, string key, TimeSpan? value, out TimeSpan? transition)
+		{
+			transition = value;
+			return AddIfValue<TimeSpan>(parameters, key, value, d => (int) d.TotalSeconds);
+		}
 
 		public static Dictionary<string, object> AddIfValue(this Dictionary<string, object> parameters, string key, Color? value)
 			=> AddIfValue<Color>(parameters, key, value, color => new int[] { color.R, color.G, color.B });

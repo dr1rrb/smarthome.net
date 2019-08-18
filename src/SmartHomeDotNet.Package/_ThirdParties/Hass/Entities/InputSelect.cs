@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using SmartHomeDotNet.Hass.Commands;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 
 namespace SmartHomeDotNet.Hass.Entities
@@ -7,7 +9,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// A marker interface for <see cref="InputSelect{T}"/> device which allows type inference
 	/// </summary>
-	public interface IInputSelect<T> : IDevice<IInputSelect<T>>
+	public interface IInputSelect<T> : IDevice<IInputSelect<T>>, ISupport<Select<T>>
 	{
 	}
 
