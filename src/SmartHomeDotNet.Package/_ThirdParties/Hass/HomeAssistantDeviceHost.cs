@@ -23,38 +23,32 @@ namespace SmartHomeDotNet.Hass
 		/// Creates a new instance
 		/// </summary>
 		/// <param name="mqtt">A client to an MQTT broker</param>
-		/// <param name="baseTopic">The base topic used by the Home Asssistant installation</param>
+		/// <param name="baseTopic">The base topic used by the Home Assistant installation</param>
 		/// <param name="scheduler">The scheduler that is used by devices which uses this host</param>
 		public HomeAssistantDeviceHost(MqttClient mqtt, string baseTopic, HomeAssistantApi api, IScheduler scheduler)
-			: base(mqtt, device => baseTopic + "/" + ((string)device.Id).Replace('.','/'), topic => topic.Values, scheduler)
+			: base(mqtt, device => GetId(device).ToMqttTopic(baseTopic), topic => topic.Values, scheduler)
 		{
 			_api = api;
 		}
 
+		private static EntityId GetId(IDevice device)
+			=> device.Id is EntityId entityId
+				? entityId
+				: throw new NotSupportedException($"Device with id '{device.Id}' is not a device from Home Assistant.");
+
+		/// <inheritdoc />
+		public override object GetId(object rawId)
+			=> EntityId.Parse(rawId);
+
 		/// <inheritdoc />
 		public override AsyncContextOperation Execute(ICommand command, IDevice device)
-		{
-			if (!(device.Id is EntityId deviceId))
-			{
-				throw new NotSupportedException($"Device with id '{device.Id}' is not a device from Home Assistant.");
-			}
-
-			return ExecuteCore(command, deviceId.Component, new[] {device});
-		}
+			=> ExecuteCore(command, GetId(device).Component, new[] {device});
 
 		/// <inheritdoc />
 		public override AsyncContextOperation Execute(ICommand command, IEnumerable<IDevice> devices)
 		{
 			var requests = devices
-				.GroupBy(device =>
-				{
-					if (!(device.Id is EntityId deviceId))
-					{
-						throw new NotSupportedException($"Device with id '{device.Id}' is not a device from Home Assistant.");
-					}
-
-					return deviceId.Component;
-				})
+				.GroupBy(device => GetId(device).Component)
 				.Select(comp => ExecuteCore(command, comp.Key, comp));
 
 			return AsyncContextOperation.WhenAll(requests);

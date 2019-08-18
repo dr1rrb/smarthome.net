@@ -33,6 +33,9 @@ namespace SmartHomeDotNet.Hass
 			Name = name.ToLowerInvariant();
 		}
 
+		/// <inheritdoc />
+		public override string ToString() => Name;
+
 		public static implicit operator string(Component component) => component.Name;
 
 		public static implicit operator Component(string name) => new Component(name);

@@ -28,19 +28,33 @@ namespace SmartHomeDotNet.Hass
 
 		/// <inheritdoc />
 		public override string ToString()
-			=> Component.ToString().ToLowerInvariant() + '.' + Id;
+			=> Component + '.' + Id;
 
-		public static EntityId Parse(string entityId)
+		internal string ToMqttTopic(string baseTopic = HomeAssistantHub.DefaultTopic)
+			=> $"{baseTopic}/{Component}/{Id}";
+
+		public static EntityId Parse(object rawId)
 		{
+			if (rawId is EntityId id)
+			{
+				return id;
+			}
+
+			if (rawId == null)
+			{
+				throw new ArgumentNullException(nameof(rawId), "The ID is null");
+			}
+
+			var entityId = rawId.ToString();
 			var separatorIndex = entityId.IndexOf('.');
 			if (separatorIndex < 0 || separatorIndex == entityId.Length - 1)
 			{
-				throw new ArgumentOutOfRangeException(nameof(entityId), "The value is not of format <component>.<id>");
+				throw new ArgumentOutOfRangeException(nameof(rawId), "The value is not of format <component>.<id>");
 			}
 
 			return new EntityId(
 				component: entityId.Substring(0, separatorIndex), 
-				id: entityId.Substring(0, separatorIndex + 1));
+				id: entityId.Substring(separatorIndex + 1));
 		}
 	}
 }

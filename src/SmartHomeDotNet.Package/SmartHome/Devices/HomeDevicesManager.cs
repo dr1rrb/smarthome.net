@@ -23,14 +23,14 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		}
 
 		public HomeDevice<ExpandoObject> GetDevice(object deviceId)
-			=> GetOrCreate(deviceId).As(Holder.Dynamic);
+			=> GetOrCreate(_host.GetId(deviceId)).As(Holder.Dynamic);
 
 		public HomeDevice<TDevice> GetDevice<TDevice>(object deviceId)
 			where TDevice : IDeviceAdapter, new()
-			=> GetOrCreate(deviceId).As(Holder.Generic<TDevice>);
+			=> GetOrCreate(_host.GetId(deviceId)).As(Holder.Generic<TDevice>);
 
 		public HomeDevice<TDevice> GetDevice<TDevice>(object deviceId, Func<DeviceState, IDeviceHost, TDevice> deviceFactory)
-			=> GetOrCreate(deviceId).As(deviceFactory);
+			=> GetOrCreate(_host.GetId(deviceId)).As(deviceFactory);
 
 		private Holder GetOrCreate(object deviceId)
 		{

@@ -18,6 +18,13 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		IScheduler Scheduler { get; }
 
 		/// <summary>
+		/// Parse and validate the configured raw ID into the expected ID type for the devices managed by this host
+		/// </summary>
+		/// <param name="rawId">The raw ID configured by the end user, usually a string or a int</param>
+		/// <returns>The structured device ID</returns>
+		object GetId(object rawId);
+
+		/// <summary>
 		/// Gets an observable sequence of changes for a device
 		/// </summary>
 		/// <remarks>It is expected that the sequence starts immediately with an initial of changes to reflect the current state of the device.</remarks>

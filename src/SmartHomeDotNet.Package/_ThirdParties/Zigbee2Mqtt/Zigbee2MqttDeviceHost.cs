@@ -46,6 +46,10 @@ namespace SmartHomeDotNet.Zigbee2Mqtt
 		}
 
 		/// <inheritdoc />
+		public override object GetId(object rawId)
+			=> rawId;
+
+		/// <inheritdoc />
 		public override AsyncContextOperation Execute(ICommand command, IDevice device)
 			=> throw new NotSupportedException("Zigbee2Mqtt device host supports only read");
 
