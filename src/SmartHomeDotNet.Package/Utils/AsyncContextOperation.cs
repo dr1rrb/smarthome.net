@@ -121,7 +121,6 @@ namespace SmartHomeDotNet.Utils
 			else
 			{
 				_context.Register(this); // Will throw if context is invalid
-
 				_ct.Token.Register(_context.Scheduler.Schedule(Run).Dispose);
 			}
 		}

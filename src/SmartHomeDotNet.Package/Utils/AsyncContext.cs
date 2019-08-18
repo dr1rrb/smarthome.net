@@ -78,14 +78,14 @@ namespace SmartHomeDotNet.Utils
 		/// Creates a new async context
 		/// </summary>
 		/// <remarks>This will still be linked to the <see cref="Current"/> if any.</remarks>
-		/// <param name="scheduler">An optional scheduler associated to this context</param>
+		/// <param name="scheduler">A scheduler associated to this context, if none provided, the current one will be propagated</param>
 		public AsyncContext(IScheduler scheduler = null)
 		{
 			_previous = Current;
 			if (_previous == null)
 			{
 				_ct = new CancellationTokenSource();
-				Scheduler = scheduler;
+				Scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler), "You cannot start a new context without scheduler. Providing 'null' is allowed only when the 'Current' AsyncContext is already set.");
 			}
 			else
 			{
@@ -101,14 +101,14 @@ namespace SmartHomeDotNet.Utils
 		/// </summary>
 		/// <remarks>This will still be linked to the <see cref="Current"/> if any.</remarks>
 		/// <param name="ct">The cancellation token to link to</param>
-		/// <param name="scheduler">An optional scheduler associated to this context</param>
+		/// <param name="scheduler">A scheduler associated to this context, if none provided, the current one will be propagated</param>
 		public AsyncContext(CancellationToken ct, IScheduler scheduler = null)
 		{
 			_previous = Current;
 			if (_previous == null)
 			{
 				_ct = CancellationTokenSource.CreateLinkedTokenSource(ct);
-				Scheduler = scheduler;
+				Scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler), "You cannot start a new context without scheduler. Providing 'null' is allowed only when the 'Current' AsyncContext is already set.");
 			}
 			else
 			{

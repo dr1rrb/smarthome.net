@@ -15,15 +15,12 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			where T : ISupport<TurnOff>
 			=> device.Host.Execute(new TurnOff(), device);
 
-		public static AsyncContextOperation Apply<TCommand>(this TCommand command, params IDevice<ISupport<TCommand>>[] devices)
-			where TCommand : ICommand
-		{
-			foreach (var devicesPerHost in devices.GroupBy(d => d.Host))
-			{
-				devicesPerHost.Key.Execute(command, devicesPerHost);
-			}
+		public static AsyncContextOperation Toggle<T>(this IDevice<T> device)
+			where T : ISupport<TurnOff>
+			=> device.Host.Execute(new Toggle(), device);
 
-			return null;
-		}
+		public static AsyncContextOperation ApplyTo<TCommand>(this TCommand command, params IDevice<ISupport<TCommand>>[] devices)
+			where TCommand : ICommand
+			=> AsyncContextOperation.WhenAll(devices.GroupBy(d => d.Host).Select(g => g.Key.Execute(command, g)));
 	}
 }
