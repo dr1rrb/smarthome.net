@@ -13,7 +13,7 @@ namespace SmartHomeDotNet.Hass.Services
 	/// </summary>
 	public static class Lights
 	{
-		public static ApiCall TurnOff(
+		public static AsyncContextOperation TurnOff(
 			this HomeAssistantApi ha,
 			params IDevice<ILight>[] lights)
 			=> ha.Execute("light", "turn_off", new Dictionary<string, object>
@@ -21,19 +21,18 @@ namespace SmartHomeDotNet.Hass.Services
 				{"entity_id", lights.Select(l => l.Id).JoinBy(", ")}
 			});
 
-		public static Transition TurnOff(
+		public static AsyncContextOperation TurnOff(
 			this HomeAssistantApi ha,
 			TimeSpan transition,
 			params IDevice<ILight>[] lights)
-			=> new Transition(
-				ha.Execute("light", "turn_off", new Dictionary<string, object>
+			=> ha.Execute("light", "turn_off", new Dictionary<string, object>
 				{
 					{"entity_id", lights.Select(l => l.Id).JoinBy(", ")},
 					{"transition", (int) transition.TotalSeconds}
-				}),
+				},
 				transition);
 
-		public static ApiCall Toggle(
+		public static AsyncContextOperation Toggle(
 			this HomeAssistantApi ha,
 			params IDevice<ILight>[] lights)
 			=> ha.Execute("light", "toggle", new Dictionary<string, object>
@@ -41,25 +40,24 @@ namespace SmartHomeDotNet.Hass.Services
 				{"entity_id", lights.Select(l => l.Id).JoinBy(", ")},
 			});
 
-		public static Transition Toggle(
+		public static AsyncContextOperation Toggle(
 			this HomeAssistantApi ha,
 			TimeSpan transition,
 			params IDevice<ILight>[] lights)
-			=> new Transition(
-				ha.Execute("light", "toggle", new Dictionary<string, object>
+			=> ha.Execute("light", "toggle", new Dictionary<string, object>
 				{
 					{"entity_id", lights.Select(l => l.Id).JoinBy(", ")},
 					{"transition", (int) transition.TotalSeconds}
-				}),
+				},
 				transition);
 
-		public static ApiCall TurnOn(this HomeAssistantApi ha, params IDevice<ILight>[] lights)
+		public static AsyncContextOperation TurnOn(this HomeAssistantApi ha, params IDevice<ILight>[] lights)
 			=> ha.Execute("light", "turn_on", new Dictionary<string, object>
 			{
 				{"entity_id", lights.Select(l => l.Id).JoinBy(", ")}
 			});
 
-		public static ApiCall TurnOn(
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			double brightness,
 			params IDevice<IDimmableLight>[] lights)
@@ -69,21 +67,20 @@ namespace SmartHomeDotNet.Hass.Services
 				{"brightness", (int) (brightness * 255)},
 			});
 
-		public static Transition TurnOn(
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			double brightness,
 			TimeSpan transition,
 			params IDevice<IDimmableLight>[] lights)
-			=> new Transition(
-				ha.Execute("light", "turn_on", new Dictionary<string, object>
+			=> ha.Execute("light", "turn_on", new Dictionary<string, object>
 				{
 					{"entity_id", lights.Select(l => l.Id).JoinBy(", ")},
 					{"brightness", (int) (brightness * 255)},
 					{"transition", (int) transition.TotalSeconds}
-				}),
+				},
 				transition);
 
-		public static ApiCall TurnOn(
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			double brightness,
 			Color color,
@@ -95,20 +92,19 @@ namespace SmartHomeDotNet.Hass.Services
 				{"rgb_color", new int[] {color.R, color.G, color.B}}
 			});
 
-		public static Transition TurnOn(
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			double brightness,
 			Color color,
 			TimeSpan transition,
 			params IDevice<IRGBLight>[] lights)
-			=> new Transition(
-				ha.Execute("light", "turn_on", new Dictionary<string, object>
+			=> ha.Execute("light", "turn_on", new Dictionary<string, object>
 				{
 					{"entity_id", lights.Select(l => l.Id).JoinBy(", ")},
 					{"brightness", (int) (brightness * 255)},
 					{"rgb_color", new int[] {color.R, color.G, color.B}},
 					{"transition", (int) transition.TotalSeconds}
-				}),
+				},
 				transition);
 	}
 }

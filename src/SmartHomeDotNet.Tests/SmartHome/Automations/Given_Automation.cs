@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Threading;
@@ -9,7 +10,7 @@ using SmartHomeDotNet.SmartHome.Automations;
 using SmartHomeDotNet.Testing;
 using SmartHomeDotNet.Utils;
 
-namespace SmartHomeDotNet.Tests
+namespace SmartHomeDotNet.Tests.SmartHome.Automations
 {
 	[TestClass]
 	public class Given_Automation

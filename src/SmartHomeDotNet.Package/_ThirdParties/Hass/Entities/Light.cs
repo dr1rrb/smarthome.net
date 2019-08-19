@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 
 namespace SmartHomeDotNet.Hass.Entities
@@ -7,7 +8,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// A marker interface for <see cref="Light"/> device which allows type inference
 	/// </summary>
-	public interface ILight : IDevice<ILight>
+	public interface ILight : IDevice<ILight>, ISupport<TurnOn>, ISupport<TurnOff>, ISupport<Toggle>
 	{
 	}
 

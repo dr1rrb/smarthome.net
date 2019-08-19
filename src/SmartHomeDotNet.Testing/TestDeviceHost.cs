@@ -29,6 +29,10 @@ namespace SmartHomeDotNet.Testing
 		public IScheduler Scheduler { get; }
 
 		/// <inheritdoc />
+		public object GetId(object rawId)
+			=> rawId;
+
+		/// <inheritdoc />
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> ImmutableInterlocked.GetOrAdd(ref _state, device.Id, new ReplaySubject<DeviceState>(Scheduler));
 

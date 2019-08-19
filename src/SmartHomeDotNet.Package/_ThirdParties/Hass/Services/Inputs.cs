@@ -19,8 +19,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="inputs">The inputs to turn off</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall TurnOff(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOff(
 			this HomeAssistantApi ha,
 			params IDevice<IInputBoolean>[] inputs)
 			=> ha.Execute("input_boolean", "turn_off", new Dictionary<string, object>
@@ -33,8 +33,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="inputs">The inputs to turn on</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall TurnOn(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			params IDevice<IInputBoolean>[] inputs)
 			=> ha.Execute("input_boolean", "turn_on", new Dictionary<string, object>
@@ -47,8 +47,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="inputs">The inputs to toggle</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall Toggle(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation Toggle(
 			this HomeAssistantApi ha,
 			params IDevice<IInputBoolean>[] inputs)
 			=> ha.Execute("input_boolean", "toggle", new Dictionary<string, object>
@@ -61,8 +61,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="inputs">The select inputs to set</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall Select<T>(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation Select<T>(
 			this HomeAssistantApi ha,
 			T option,
 			params IDevice<IInputSelect<T>>[] inputs)

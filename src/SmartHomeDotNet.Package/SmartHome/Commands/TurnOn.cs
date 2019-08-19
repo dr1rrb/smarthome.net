@@ -10,7 +10,7 @@ namespace SmartHomeDotNet.SmartHome.Commands
 	public struct TurnOn : ICommand
 	{
 		/// <summary>
-		/// The optional target color for light
+		/// The optional target color for RGB light
 		/// </summary>
 		public Color? Color { get; set; }
 

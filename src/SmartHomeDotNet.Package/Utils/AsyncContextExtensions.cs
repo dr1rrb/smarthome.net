@@ -38,7 +38,7 @@ namespace SmartHomeDotNet.Utils
 				.Subscribe();
 
 			Task Execute(CancellationToken ct, T value)
-				=> AsyncContext.Execute(ct, value, action);
+				=> AsyncContext.Execute(ct, value, action, ctx.Scheduler);
 		}
 	}
 }

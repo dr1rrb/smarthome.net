@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Linq;
 using SmartHomeDotNet.Hass.Entities;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 
 namespace SmartHomeDotNet.Hass.Entities
@@ -9,7 +10,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// A marker interface for <see cref="Fan"/> device which allows type inference
 	/// </summary>
-	public interface IFan : IDevice<IFan>
+	public interface IFan : IDevice<IFan>, ISupport<TurnOn>, ISupport<TurnOff>, ISupport<Toggle>
 	{
 	}
 

@@ -17,8 +17,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="fans">Fans to turn off</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall TurnOff(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOff(
 			this HomeAssistantApi ha,
 			params IDevice<IFan>[] fans)
 			=> ha.Execute("fan", "turn_off", new Dictionary<string, object>
@@ -31,8 +31,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="fans">Fans to turn on</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall TurnOn(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn(
 			this HomeAssistantApi ha,
 			params IDevice<IFan>[] fans)
 			=> ha.Execute("fan", "turn_on", new Dictionary<string, object>
@@ -45,8 +45,8 @@ namespace SmartHomeDotNet.Hass.Services
 		/// </summary>
 		/// <param name="ha">The HA API</param>
 		/// <param name="fans">Fans to configure</param>
-		/// <returns>An <see cref="ApiCall"/>.</returns>
-		public static ApiCall SetSpeed(
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation SetSpeed(
 			this HomeAssistantApi ha,
 			Fan.Speeds speed,
 			params IDevice<IFan>[] fans)

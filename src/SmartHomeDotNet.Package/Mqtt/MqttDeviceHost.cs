@@ -57,6 +57,9 @@ namespace SmartHomeDotNet.Mqtt
 			Scheduler = scheduler;
 		}
 
+		/// <inheritdoc />
+		public abstract object GetId(object rawId);
+
 		/// <inheritdoc cref="IDeviceHost"/>
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> _mqtt
