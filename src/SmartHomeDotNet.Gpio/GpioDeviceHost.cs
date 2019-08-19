@@ -28,6 +28,10 @@ namespace SmartHomeDotNet.Gpio
 		public IScheduler Scheduler { get; }
 
 		/// <inheritdoc />
+		public object GetId(object rawId)
+			=> GpioId.Parse(rawId);
+
+		/// <inheritdoc />
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
 			=> GetPin(device).GetAndObserveState();
 
