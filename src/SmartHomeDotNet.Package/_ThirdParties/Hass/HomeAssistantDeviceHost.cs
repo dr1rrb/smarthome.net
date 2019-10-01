@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
@@ -19,6 +20,8 @@ namespace SmartHomeDotNet.Hass
 	{
 		private readonly HomeAssistantApi _api;
 
+		private ImmutableList<ICommandAdapter> _commands = ImmutableList<ICommandAdapter>.Empty;
+
 		/// <summary>
 		/// Creates a new instance
 		/// </summary>
@@ -30,6 +33,13 @@ namespace SmartHomeDotNet.Hass
 		{
 			_api = api;
 		}
+
+		/// <summary>
+		/// Registers a custom command adapter on this device host
+		/// </summary>
+		/// <param name="adapter">The adapter which adapts a generic <see cref="ICommand"/> to a <see cref="CommandData"/> which can be sent to the Home Assistant hub</param>
+		public void RegisterCommand(ICommandAdapter adapter)
+			=> ImmutableInterlocked.Update(ref _commands, cmds => cmds.Add(adapter));
 
 		private static EntityId GetId(IDevice device)
 			=> device.Id is EntityId entityId
@@ -54,22 +64,30 @@ namespace SmartHomeDotNet.Hass
 			return AsyncContextOperation.WhenAll(requests);
 		}
 
-		private AsyncContextOperation ExecuteCore(ICommand command, Component component, IEnumerable<IDevice> devices)
+		private AsyncContextOperation ExecuteCore(ICommand command, Component domain, IEnumerable<IDevice> devices)
 		{
-			var comp = component.ToString().ToLowerInvariant();
+			string comp = domain;
+
+			foreach (var adapter in _commands)
+			{
+				if (adapter.TryGetData(domain, command, out var data))
+				{
+					return _api.Execute(data.Component, data.Service, data.Parameters.Add(devices), data.Transition);
+				}
+			}
 
 			switch (command)
 			{
 				case TurnOn on:
-					return _api.Execute(comp, "turn_on", on.ToParameters(component, devices, out var tOn), tOn);
+					return _api.Execute(comp, "turn_on", on.ToParameters(domain, devices, out var tOn), tOn);
 				case TurnOff off:
-					return _api.Execute(comp, "turn_off", off.ToParameters(component, devices, out var tOff), tOff);
+					return _api.Execute(comp, "turn_off", off.ToParameters(domain, devices, out var tOff), tOff);
 				case Toggle toggle:
-					return _api.Execute(comp, "toggle", toggle.ToParameters(component, devices, out var tTog), tTog);
+					return _api.Execute(comp, "toggle", toggle.ToParameters(domain, devices, out var tTog), tTog);
 				case ISelectCommand select:
-					return _api.Execute(comp, "select_option", select.ToParameters(component, devices));
+					return _api.Execute(comp, "select_option", select.ToParameters(domain, devices));
 				case SetSpeed setSpeed:
-					return _api.Execute(comp, "set_speed", setSpeed.ToParameters(component, devices));
+					return _api.Execute(comp, "set_speed", setSpeed.ToParameters(domain, devices));
 
 				default:
 					throw new NotSupportedException($"Command {command.GetType()} is not supported.");

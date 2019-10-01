@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Drawing;
 using System.Linq;
 using SmartHomeDotNet.Hass.Commands;
@@ -122,6 +123,11 @@ namespace SmartHomeDotNet.Hass
 			parameters.Add("entity_id", devices.Select(d => d.Id.ToString()).JoinBy(", "));
 
 			return parameters;
+		}
+
+		public static IImmutableDictionary<string, object> Add(this IImmutableDictionary<string, object> parameters, IEnumerable<IDevice> devices)
+		{
+			return parameters.Add("entity_id", devices.Select(d => d.Id.ToString()).JoinBy(", "));
 		}
 
 		public static Dictionary<string, object> AddIfValue<T>(this Dictionary<string, object> parameters, string key, T? value, Func<T, object> format = null)
