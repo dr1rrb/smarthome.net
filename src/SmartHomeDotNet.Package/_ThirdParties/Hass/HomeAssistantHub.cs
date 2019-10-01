@@ -4,6 +4,7 @@ using System.Reactive.Concurrency;
 using SmartHomeDotNet.Hass;
 using SmartHomeDotNet.Mqtt;
 using SmartHomeDotNet.SmartHome.Automations;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.SmartHome.Scenes;
 
@@ -16,6 +17,8 @@ namespace SmartHomeDotNet.Hass
 	{
 		public const string DefaultHomeTopic = "smarthomedotnet";
 		public const string DefaultTopic = "homeassistant";
+
+		private readonly HomeAssistantDeviceHost _mqttStateStream;
 
 		/// <summary>
 		/// Creates an instance of a Home Assistant hub which will use MQTT state stream
@@ -41,12 +44,23 @@ namespace SmartHomeDotNet.Hass
 			hassTopic = hassTopic.Trim('/', '#', '*');
 
 			var api = new HomeAssistantApi(apiHostName, apiPassword);
-			var mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
+			_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
 
-			Devices = new HomeDevicesManager(mqttStateStream);
+			Devices = new HomeDevicesManager(_mqttStateStream);
 			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler);
 			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler);
 			Api = api;
+		}
+
+		/// <summary>
+		/// Registers a custom command adapter on the device host of this hub
+		/// </summary>
+		/// <param name="adapter">The adapter which adapts a generic <see cref="ICommand"/> to a <see cref="CommandData"/> which can be sent to this hub</param>
+		/// <returns>The current hub to re-use for fluent declaration</returns>
+		public HomeAssistantHub RegisterCommand(ICommandAdapter adapter)
+		{
+			_mqttStateStream.RegisterCommand(adapter);
+			return this;
 		}
 
 		/// <summary>
