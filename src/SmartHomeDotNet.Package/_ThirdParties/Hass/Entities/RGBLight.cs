@@ -17,7 +17,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// A light on which color can be customized
 	/// </summary>
-	public class RGBLight : DimmableLight, IRGBLight
+	public class RGBLight : DimmableLight
 	{
 		public Color Color
 		{

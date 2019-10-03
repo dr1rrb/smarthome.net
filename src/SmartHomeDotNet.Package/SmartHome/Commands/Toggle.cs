@@ -11,6 +11,6 @@ namespace SmartHomeDotNet.SmartHome.Commands
 		/// <summary>
 		/// The optional duration of the fade out for dimmable devices
 		/// </summary>
-		public TimeSpan? Duration { get; }
+		public TimeSpan? Duration { get; set; }
 	}
 }

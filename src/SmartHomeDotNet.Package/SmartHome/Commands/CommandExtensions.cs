@@ -1,25 +1,155 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using SmartHomeDotNet.Hass.Commands;
+using SmartHomeDotNet.Hass.Entities;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Commands
 {
+	/// <summary>
+	/// Extensions on devices to apply the common commands
+	/// </summary>
 	public static class CommandExtensions
 	{
+		#region TurnOn
+		/// <summary>
+		/// Turns on this device
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
 		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device)
 			where T : ISupport<TurnOn>
 			=> device.Host.Execute(new TurnOn(), device);
 
+		/// <summary>
+		/// Turns on this device to the given brightness
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness), device);
+
+		/// <summary>
+		/// Turns on this device to the given color
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, Color color)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(color), device);
+
+
+		/// <summary>
+		/// Turns on this device with a fade in transition
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, TimeSpan transition)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(transition), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness with a fade in transition
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, TimeSpan transition)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, transition), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness and color
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, Color color)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, color), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness and color with a fade in transition
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, Color color, TimeSpan transition)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, color, transition), device);
+
+		#endregion
+
+		#region TurnOff
+		/// <summary>
+		/// Turns off this device
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
 		public static AsyncContextOperation TurnOff<T>(this IDevice<T> device)
 			where T : ISupport<TurnOff>
 			=> device.Host.Execute(new TurnOff(), device);
 
+		/// <summary>
+		/// Turns off this device with a fade out transition
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOff<T>(this IDevice<T> device, TimeSpan transition)
+			where T : ISupport<TurnOff>
+			=> device.Host.Execute(new TurnOff {Duration = transition}, device);
+		#endregion
+
+		#region Toggle
+		/// <summary>
+		/// Toggles on/off this device
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
 		public static AsyncContextOperation Toggle<T>(this IDevice<T> device)
 			where T : ISupport<TurnOff>
 			=> device.Host.Execute(new Toggle(), device);
 
-		public static AsyncContextOperation ApplyTo<TCommand>(this TCommand command, params IDevice<ISupport<TCommand>>[] devices)
+		/// <summary>
+		/// Toggles on/off this device with a fade transition
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation Toggle<T>(this IDevice<T> device, TimeSpan transition)
+			where T : ISupport<TurnOff>
+			=> device.Host.Execute(new Toggle {Duration = transition}, device);
+		#endregion
+
+		#region Select
+		/// <summary>
+		/// Sets the given value to this device
+		/// </summary>
+		/// <param name="option">The value to set</param>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation Select<TDevice, TValue>(this IDevice<TDevice> device, TValue option)
+			where TDevice : ISupport<Select<TValue>>
+			=> device.Host.Execute(new Select<TValue>(option), device);
+		#endregion
+
+		#region SetSpeed
+		/// <summary>
+		/// Sets the speed of one this fan
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation SetSpeed<T>(this IDevice<T> device, Fan.Speeds speed)
+			where T : ISupport<TurnOff>
+			=> device.Host.Execute(new SetSpeed(speed), device);
+		#endregion
+
+		/// <summary>
+		/// Send this command to one or more devices
+		/// </summary>
+		/// <typeparam name="TCommand">The type of the command</typeparam>
+		/// <param name="command">The command to send</param>
+		/// <param name="devices">The target devices on which this command should be sent</param>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation SendTo<TCommand>(this TCommand command, params IDevice<ISupport<TCommand>>[] devices)
+			where TCommand : ICommand
+			=> AsyncContextOperation.WhenAll(devices.GroupBy(d => d.Host).Select(g => g.Key.Execute(command, g)));
+		
+		/// <summary>
+		/// Send this command to one or more devices
+		/// </summary>
+		/// <typeparam name="TCommand">The type of the command</typeparam>
+		/// <param name="command">The command to send</param>
+		/// <param name="devices">The target devices on which this command should be sent</param>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation SendTo<TCommand>(this TCommand command, IEnumerable<IDevice<ISupport<TCommand>>> devices)
 			where TCommand : ICommand
 			=> AsyncContextOperation.WhenAll(devices.GroupBy(d => d.Host).Select(g => g.Key.Execute(command, g)));
 	}

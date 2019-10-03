@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 
 namespace SmartHomeDotNet.Hass.Entities
@@ -15,7 +16,7 @@ namespace SmartHomeDotNet.Hass.Entities
 	/// <summary>
 	/// a light on which brightness can be customized
 	/// </summary>
-	public class DimmableLight : Light, IDimmableLight
+	public class DimmableLight : Light
 	{
 		/// <summary>
 		/// Gets teh current brightness of the light
