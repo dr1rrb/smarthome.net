@@ -9,6 +9,48 @@ namespace SmartHomeDotNet.SmartHome.Commands
 	/// </summary>
 	public struct TurnOn : ICommand
 	{
+		public TurnOn(double brightness)
+		{
+			Level = brightness;
+			Color = default;
+			Duration = default;
+		}
+
+		public TurnOn(Color color)
+		{
+			Level = default;
+			Color = color;
+			Duration = default;
+		}
+
+		public TurnOn(TimeSpan transition)
+		{
+			Level = default;
+			Color = default;
+			Duration = transition;
+		}
+
+		public TurnOn(double brightness, Color color)
+		{
+			Level = brightness;
+			Color = color;
+			Duration = default;
+		}
+
+		public TurnOn(double brightness, TimeSpan transition)
+		{
+			Level = brightness;
+			Color = default;
+			Duration = transition;
+		}
+
+		public TurnOn(double brightness, Color color, TimeSpan transition)
+		{
+			Level = brightness;
+			Color = color;
+			Duration = transition;
+		}
+
 		/// <summary>
 		/// The optional target color for RGB light
 		/// </summary>
