@@ -88,6 +88,8 @@ namespace SmartHomeDotNet.Hass
 					return _api.Execute(comp, "select_option", select.ToParameters(domain, devices));
 				case SetSpeed setSpeed:
 					return _api.Execute(comp, "set_speed", setSpeed.ToParameters(domain, devices));
+				case SetText setText:
+					return _api.Execute(comp, "set_value", setText.ToParameters(domain, devices));
 
 				default:
 					throw new NotSupportedException($"Command {command.GetType()} is not supported.");

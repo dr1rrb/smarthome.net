@@ -7,6 +7,22 @@ namespace SmartHomeDotNet.Hass
 	/// <summary>
 	/// An adapter which adapts a generic <see cref="ICommand"/> to a <see cref="CommandData"/> which can be sent to a Home Assistant hub
 	/// </summary>
+	/// <example>
+	/// public class SetTextAdapter : ICommandAdapter
+	///	{
+	///		public bool TryGetData(Component domain, ICommand command, out CommandData data)
+	///		{
+	///			if (command is SetText setText)
+	///			{
+	///				data = new CommandData("input_text", "set_value", new Dictionary<string, object> { { "value", setText.Value } });
+	///				return true;
+	///			}
+	///	
+	///			data = default;
+	///			return false;
+	///		}
+	///	}
+	/// </example>
 	public interface ICommandAdapter
 	{
 		/// <summary>

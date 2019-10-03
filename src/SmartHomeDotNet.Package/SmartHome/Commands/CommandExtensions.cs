@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using SmartHomeDotNet.Hass.Commands;
-using SmartHomeDotNet.Hass.Entities;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.Utils;
 
@@ -108,27 +106,6 @@ namespace SmartHomeDotNet.SmartHome.Commands
 		public static AsyncContextOperation Toggle<T>(this IDevice<T> device, TimeSpan transition)
 			where T : ISupport<TurnOff>
 			=> device.Host.Execute(new Toggle {Duration = transition}, device);
-		#endregion
-
-		#region Select
-		/// <summary>
-		/// Sets the given value to this device
-		/// </summary>
-		/// <param name="option">The value to set</param>
-		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
-		public static AsyncContextOperation Select<TDevice, TValue>(this IDevice<TDevice> device, TValue option)
-			where TDevice : ISupport<Select<TValue>>
-			=> device.Host.Execute(new Select<TValue>(option), device);
-		#endregion
-
-		#region SetSpeed
-		/// <summary>
-		/// Sets the speed of one this fan
-		/// </summary>
-		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
-		public static AsyncContextOperation SetSpeed<T>(this IDevice<T> device, Fan.Speeds speed)
-			where T : ISupport<TurnOff>
-			=> device.Host.Execute(new SetSpeed(speed), device);
 		#endregion
 
 		/// <summary>
