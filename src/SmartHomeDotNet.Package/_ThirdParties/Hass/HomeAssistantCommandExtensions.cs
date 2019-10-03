@@ -111,6 +111,22 @@ namespace SmartHomeDotNet.Hass
 			}
 		}
 
+		public static Dictionary<string, object> ToParameters(this SetText setText, Component component, IEnumerable<IDevice> devices)
+		{
+			switch (component)
+			{
+				case Component.InputText:
+					return new Dictionary<string, object>
+						{
+							{"value", setText.Value}
+						}
+						.Add(devices);
+
+				default:
+					throw new NotSupportedException($"Component '{component}' does not support command SetSpeed, but one or more device tries to use it ({devices.Select(d => d.Id.ToString()).JoinBy(", ")})");
+			}
+		}
+
 		public static Dictionary<string, object> Add(this Dictionary<string, object> parameters, EntityId id)
 		{
 			parameters.Add("entity_id", id.ToString());

@@ -23,6 +23,8 @@ namespace SmartHomeDotNet.Hass
 
 		public const string InputSelect = "input_select";
 
+		public const string InputText = "input_text";
+
 		/// <summary>
 		/// The name of this component
 		/// </summary>
