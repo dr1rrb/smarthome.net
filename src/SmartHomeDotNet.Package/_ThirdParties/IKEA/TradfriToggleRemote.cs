@@ -8,7 +8,7 @@ namespace SmartHomeDotNet.IKEA.Devices
 	/// <summary>
 	/// The remote toggle switch from IKEA
 	/// </summary>
-	public class SquareToggleButton : Device
+	public class TradfriToggleRemote : Device
 	{
 		/// <summary>
 		/// Gets the action applied on the button
