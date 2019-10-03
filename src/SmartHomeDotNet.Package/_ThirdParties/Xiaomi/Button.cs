@@ -2,7 +2,7 @@
 using System.Linq;
 using SmartHomeDotNet.SmartHome.Devices;
 
-namespace SmartHomeDotNet.Xiaomi
+namespace SmartHomeDotNet.Xiaomi.Devices
 {
 	public class Button : Device
 	{

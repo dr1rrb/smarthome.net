@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Linq;
 using SmartHomeDotNet.SmartHome.Devices;
 
-namespace SmartHomeDotNet.Xiaomi
+namespace SmartHomeDotNet.Xiaomi.Devices
 {
 	public class Cube : Device
 	{
