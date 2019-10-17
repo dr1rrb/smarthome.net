@@ -19,8 +19,23 @@ jobs:
       inputs:
         updateAssemblyInfo: true
 
-    - script: dotnet build --configuration $(buildConfiguration) -p:PackageVersion=$(GitVersion.FullSemVer) src/SmartHomeDotNet.sln
-      displayName: 'dotnet build $(buildConfiguration)'
+    - task: NuGetCommand@2
+      inputs:
+        command: 'restore'
+        restoreSolution: 'src/SmartHomeDotNet.sln'
+        feedsToUse: 'select'
+
+    - task: MSBuild@1
+      inputs:
+        solution: src/SmartHomeDotNet.sln
+        msbuildArchitecture: 'x64'
+        platform: 'Any CPU'
+        configuration: '$(buildConfiguration)'
+        restoreNugetPackages: true
+
+    # We use MSBuild until the hosted agent are able to use C# 7.3 :/
+    #- script: dotnet build --configuration $(buildConfiguration) -p:PackageVersion=$(GitVersion.FullSemVer) src/SmartHomeDotNet.sln
+    #  displayName: 'dotnet build $(buildConfiguration)'
 
     - task: CopyFiles@2
       inputs:

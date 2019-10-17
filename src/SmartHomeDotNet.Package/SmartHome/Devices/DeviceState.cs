@@ -16,12 +16,12 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// </summary>
 		/// <param name="deviceId">Id of the device</param>
 		/// <param name="properties">The properties of the device</param>
-		/// <param name="isPersistedState">A boolean which indicates if this device state is a transient state (e.g. button pressed), or not</param>
-		public DeviceState(object deviceId, ImmutableDictionary<string, string> properties, bool isPersistedState)
+		/// <param name="isPersisted">A boolean which indicates if this device state is a transient state (e.g. button pressed), or not</param>
+		public DeviceState(object deviceId, ImmutableDictionary<string, string> properties, bool isPersisted)
 		{
 			DeviceId = deviceId;
 			Properties = properties;
-			IsPersistedState = isPersistedState;
+			IsPersisted = isPersisted;
 		}
 
 		/// <summary>
@@ -37,7 +37,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// <summary>
 		/// Get a boolean which indicates if this device state is a transient state (e.g. button pressed), or not.
 		/// </summary>
-		public bool IsPersistedState { get; }
+		public bool IsPersisted { get; }
 
 		internal ExpandoObject ToDynamic()
 		{

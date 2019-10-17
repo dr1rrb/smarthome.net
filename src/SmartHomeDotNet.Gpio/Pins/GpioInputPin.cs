@@ -41,7 +41,7 @@ namespace SmartHomeDotNet.Gpio
 						}
 					}
 				})
-				.Select(isOn => new DeviceState(PinNumber.ToString(), ImmutableDictionary<string, string>.Empty.SetItem("state", isOn ? "on" : "off"), isPersistedState: true));
+				.Select(isOn => new DeviceState(PinNumber.ToString(), ImmutableDictionary<string, string>.Empty.SetItem("state", isOn ? "on" : "off"), isPersisted: true));
 		}
 	}
 }

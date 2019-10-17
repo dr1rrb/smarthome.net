@@ -1,13 +1,49 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
+using System.Reflection;
 using System.Threading;
+using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.SmartHome.Automations;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.SmartHome.Scenes;
 
 namespace SmartHomeDotNet
 {
+	/// <summary>
+	/// 
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
+	public class DeviceAttribute : Attribute
+	{
+		public DeviceAttribute(object id)
+		{
+			Id = id;
+		}
+
+		/// <summary>
+		/// The id of the device
+		/// </summary>
+		public object Id { get; }
+
+		/// <summary>
+		/// The name of the host for this device. If none define, the default <see cref="HomeBase{THome}.GetDefaultDeviceManager"/> will be used.
+		/// </summary>
+		public string Host { get; set; }
+	}
+
+	[AttributeUsage(AttributeTargets.Property | AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+	public class AutoInitAttribute : Attribute
+	{
+		public bool Ignore { get; set; }
+	}
+
+	public interface IHub : IDisposable
+	{
+
+	}
+
 	/// <summary>
 	/// A base class for an home that
 	/// </summary>
@@ -58,5 +94,179 @@ namespace SmartHomeDotNet
 			=> DefaultAutomationHost ?? throw new NullReferenceException(
 				$"No default automation host defined on '{GetType().Name}', you must specify the automation host to use for automation '{automationName}'"
 				+ "(i.e. either provide a automation host in you automation constructor, or override the DefaultAutomationHost)");
+
+		/// <inheritdoc />
+		protected override IEnumerable<IDisposable> CreateHubs()
+		{
+			foreach (var prop in GetType().GetProperties())
+			{
+				if (IsIgnored(prop) || IsIgnored(prop.PropertyType))
+				{
+					continue;
+				}
+
+				if (!typeof(IHub).IsAssignableFrom(prop.PropertyType)
+					|| prop.PropertyType.GetConstructors().All(ctor => ctor.GetParameters().Any()))
+				{
+					continue;
+				}
+
+				if (prop.GetValue(this) != null)
+				{
+					continue;
+				}
+
+				//var device = GetDefaultDeviceManager(prop.Name).GetDevice(id);
+
+				prop.SetValue(this, device);
+
+				if (device is IDisposable d)
+				{
+					yield return d;
+				}
+			}
+		}
+
+		/// <inheritdoc />
+		protected override void CreateRooms()
+		{
+			var rooms = FindAndCreateInstances(typeof(Room<THome>));
+
+			TryAssignProperties(rooms);
+		}
+
+		/// <inheritdoc />
+		protected override IEnumerable<IDisposable> CreateDevices()
+		{
+			foreach (var prop in GetType().GetProperties())
+			{
+				if (IsIgnored(prop) || IsIgnored(prop.PropertyType))
+				{
+					continue;
+				}
+
+				var attribute = prop.CustomAttributes.SingleOrDefault(attr => typeof(DeviceAttribute).IsAssignableFrom(attr.AttributeType));
+				if (attribute == null)
+				{
+					continue;
+				}
+
+				if (prop.GetValue(this) != null)
+				{
+					continue;
+				}
+
+				var id = attribute.ConstructorArguments.First().Value;
+				var host = attribute.NamedArguments?.FirstOrDefault(arg => arg.MemberName == nameof(DeviceAttribute.Host)).TypedValue.Value as string;
+
+
+				var device = GetDefaultDeviceManager(prop.Name).GetDevice(id);
+
+				prop.SetValue(this, device);
+
+				if (device is IDisposable d)
+				{
+					yield return d;
+				}
+			}
+		}
+
+		/// <inheritdoc />
+		protected override IEnumerable<IDisposable> CreateScenes()
+		{
+			var scenes = FindAndCreateInstances(typeof(Scene<THome>));
+
+			TryAssignProperties(scenes);
+
+			return scenes.Cast<IDisposable>();
+		}
+
+		/// <inheritdoc />
+		protected override IEnumerable<IDisposable> CreateAutomations()
+		{
+			var scenes = FindAndCreateInstances(typeof(Automation<THome>));
+
+			TryAssignProperties(scenes);
+
+			return scenes.Cast<IDisposable>();
+		}
+
+		private ICollection<object> FindAndCreateInstances(Type target)
+		{
+			return this
+				.GetType()
+				.Assembly
+				.GetTypes()
+				.Where(type => !IsIgnored(type)
+					&& target.IsAssignableFrom(type)
+					&& type.GetConstructors().Any(ctor => !ctor.GetParameters().Any())
+				)
+				.Select(TryCreateInstance)
+				.Where(inst => inst != null)
+				.ToList(); // Make sure to materialize the collection only once!
+
+			object TryCreateInstance(Type type)
+			{
+				try
+				{
+					return Activator.CreateInstance(type);
+				}
+				catch (Exception)
+				{
+					this.Log().Error("Failed to create an instance of " + type.Name);
+
+					return null;
+				}
+			}
+		}
+
+		private void TryAssignProperties(IEnumerable<object> instances)
+		{
+			var assignableProperties = this
+				.GetType()
+				.GetProperties()
+				.Where(prop => !IsIgnored(prop))
+				.Join(instances, prop => prop.PropertyType, inst => inst.GetType(), (property, value) => (property, value))
+				.GroupBy(t => t.property);
+
+			foreach (var assignableProperty in assignableProperties)
+			{
+				var prop = assignableProperty.Key;
+				if (prop.GetValue(this) != null)
+				{
+					this.Log().Info($"Don't assign the property {prop.Name} as it not null.");
+					continue;
+				}
+
+				if (assignableProperty.Count() > 1)
+				{
+					this.Log().Error($"Cannot assign property {prop.Name} as we found {assignableProperty.Count()} matching instances.");
+					continue;
+				}
+
+				prop.SetValue(this, assignableProperty.First());
+			}
+		}
+
+		private void CreateProperties(Predicate<PropertyInfo> propertyFilter)
+		{
+
+		}
+
+		private bool IsIgnored(PropertyInfo prop)
+		{
+			var initAttr = prop.CustomAttributes.SingleOrDefault(attr => typeof(AutoInitAttribute).IsAssignableFrom(attr.AttributeType));
+			var isIgnored = initAttr?.NamedArguments?.SingleOrDefault(arg => arg.MemberName == nameof(AutoInitAttribute.Ignore)).TypedValue.Value;
+
+			return isIgnored is bool b && b;
+		}
+
+		private bool IsIgnored(Type type)
+		{
+			var initAttr = type.CustomAttributes.SingleOrDefault(attr => typeof(AutoInitAttribute).IsAssignableFrom(attr.AttributeType));
+			var isIgnored = initAttr?.NamedArguments?.SingleOrDefault(arg => arg.MemberName == nameof(AutoInitAttribute.Ignore)).TypedValue.Value;
+
+			return isIgnored is bool b && b;
+		}
 	}
 }

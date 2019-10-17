@@ -35,7 +35,7 @@ namespace SmartHomeDotNet.Gpio
 				.Select(isOn => new DeviceState(
 					PinNumber.ToString(), 
 					ImmutableDictionary<string, string>.Empty.SetItem("state", isOn ? "on" : "off"), 
-					isPersistedState: true));
+					isPersisted: true));
 
 		/// <summary>
 		/// Sets the current value of the pin

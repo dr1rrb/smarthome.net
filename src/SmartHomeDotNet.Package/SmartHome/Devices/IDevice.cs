@@ -18,4 +18,9 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		/// </summary>
 		IDeviceHost Host { get; }
 	}
+
+	public interface ILazyDevice : IDevice
+	{
+		void TryInit(object id, IDeviceHost host);
+	}
 }

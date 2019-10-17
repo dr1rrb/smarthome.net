@@ -18,7 +18,7 @@ namespace SmartHomeDotNet.Hass
 		public const string DefaultHomeTopic = "smarthomedotnet";
 		public const string DefaultTopic = "homeassistant";
 
-		private readonly HomeAssistantDeviceHost _mqttStateStream;
+		private HomeAssistantApiDeviceActuator _actuator;
 
 		/// <summary>
 		/// Creates an instance of a Home Assistant hub which will use MQTT state stream
@@ -44,9 +44,15 @@ namespace SmartHomeDotNet.Hass
 			hassTopic = hassTopic.Trim('/', '#', '*');
 
 			var api = new HomeAssistantApi(apiHostName, apiPassword);
-			_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
+			var actuator = new HomeAssistantApiDeviceActuator(api);
+			var state = new HomeAssistantMqttStateProvider(mqtt, hassTopic);
 
-			Devices = new HomeDevicesManager(_mqttStateStream);
+			
+			//_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
+
+			_actuator = actuator;
+
+			Devices = new GenericDeviceHost<EntityId>(state, actuator, scheduler);
 			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler);
 			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler);
 			Api = api;
@@ -59,7 +65,7 @@ namespace SmartHomeDotNet.Hass
 		/// <returns>The current hub to re-use for fluent declaration</returns>
 		public HomeAssistantHub RegisterCommand(ICommandAdapter adapter)
 		{
-			_mqttStateStream.RegisterCommand(adapter);
+			_actuator.RegisterCommand(adapter);
 			return this;
 		}
 
@@ -76,7 +82,7 @@ namespace SmartHomeDotNet.Hass
 		/// <summary>
 		/// Gets the device manager of this instance of Home Assistant
 		/// </summary>
-		public HomeDevicesManager Devices { get; }
+		public IDeviceHost Devices { get; }
 
 		/// <summary>
 		/// Gets the API of this instance of Home Assistant
