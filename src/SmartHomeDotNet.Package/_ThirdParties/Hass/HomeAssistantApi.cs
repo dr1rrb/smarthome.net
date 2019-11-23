@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,7 +23,7 @@ namespace SmartHomeDotNet.Hass
 		/// </summary>
 		/// <param name="host">The uri of the REST API, eg. IP_ADDRESS:8123</param>
 		/// <param name="apiPassword">The API password configured in your configuration.yml.</param>
-		public HomeAssistantApi(string host, string apiPassword)
+		public HomeAssistantApi(string host, string apiToken)
 		{
 			_host = host;
 
@@ -32,7 +33,7 @@ namespace SmartHomeDotNet.Hass
 			{
 				DefaultRequestHeaders =
 				{
-					{"x-ha-access", apiPassword}
+					Authorization = new AuthenticationHeaderValue("Bearer", apiToken)
 				}
 			};
 		}

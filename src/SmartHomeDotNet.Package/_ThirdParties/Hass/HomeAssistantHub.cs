@@ -35,7 +35,7 @@ namespace SmartHomeDotNet.Hass
 		public HomeAssistantHub(
 			IScheduler scheduler, 
 			string apiHostName,
-			string apiPassword,
+			string apiToken,
 			MqttClient mqtt, 
 			string homeTopic = DefaultHomeTopic, 
 			string hassTopic = DefaultTopic)
@@ -43,7 +43,7 @@ namespace SmartHomeDotNet.Hass
 			homeTopic = homeTopic.Trim('/', '#', '*');
 			hassTopic = hassTopic.Trim('/', '#', '*');
 
-			var api = new HomeAssistantApi(apiHostName, apiPassword);
+			var api = new HomeAssistantApi(apiHostName, apiToken);
 			_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
 
 			Devices = new HomeDevicesManager(_mqttStateStream);
