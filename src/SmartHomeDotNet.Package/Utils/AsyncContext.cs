@@ -264,8 +264,6 @@ namespace SmartHomeDotNet.Utils
 		/// <inheritdoc />
 		public void Dispose()
 		{
-			CheckCurrent();
-
 			if (Interlocked.Exchange(ref _state, State.Disposed) != State.Disposed)
 			{
 				_current.Value = _previous;
