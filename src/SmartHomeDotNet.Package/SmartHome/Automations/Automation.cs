@@ -67,10 +67,13 @@ namespace SmartHomeDotNet.SmartHome.Automations
 					_automationSubscription.Disposable = null;
 					if (isEnabled)
 					{
-						using (new AsyncContext(Scheduler)) // AsyncContext is used here only to propagate the IScheduler
+						_automationSubscription.Disposable = new CompositeDisposable
 						{
-							_automationSubscription.Disposable = Enable();
-						}
+							// AsyncContext is used here mainly to propagate the IScheduler, but might flow in the subscriptions
+							// made in the "Enable". So we make sure to dispose it only when the automation is disable.
+							new AsyncContext(Scheduler),
+							Enable()
+						};
 					}
 
 					this.Log().Info($"Automation '{Name}' is now enabled: {isEnabled}");

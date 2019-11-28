@@ -58,6 +58,18 @@ namespace SmartHomeDotNet.Utils
 		/// <returns>An observable sequence of <see cref="Unit"/> which produce a value each time an execution of the action completes.</returns>
 		public static IObservable<Unit> Execute<T>(this IObservable<T> source, Func<CancellationToken, T, Task> action, ConcurrentExecutionMode mode, IScheduler scheduler)
 		{
+			var originalAction = action;
+			action = async (ct, t) =>
+			{
+				try
+				{
+					await originalAction(ct, t);
+				}
+				catch (OperationCanceledException)
+				{
+				}
+			};
+
 			switch (mode)
 			{
 				case ConcurrentExecutionMode.AbortPrevious:

@@ -48,7 +48,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		private readonly object _connectionGate = new object();
 		private int _connectionClients;
-		private Connection _subscription;
+		private Connection _connection;
 
 		public MqttClient(
 			MqttBrokerConfig broker,
@@ -135,17 +135,17 @@ namespace SmartHomeDotNet.Mqtt
 		{
 			Interlocked.Increment(ref _connectionClients);
 
-			var connection = _subscription;
+			var connection = _connection;
 			if (connection == null)
 			{
 				lock (_connectionGate)
 				{
-					if (_subscription == null)
+					if (_connection == null)
 					{
-						_subscription = new Connection(_broker, _rootTopics, _scheduler);
+						_connection = new Connection(_broker, _rootTopics, _scheduler);
 					}
 
-					connection = _subscription;
+					connection = _connection;
 				}
 			}
 
@@ -154,7 +154,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		private void Release(Connection connection)
 		{
-			if (_subscription != connection)
+			if (_connection != connection)
 			{
 				throw new InvalidOperationException("Invalid state");
 			}
@@ -177,7 +177,7 @@ namespace SmartHomeDotNet.Mqtt
 
 		private IDisposable DelayedRelease(IScheduler scheduler, Connection connection)
 		{
-			if (_subscription != connection)
+			if (_connection != connection)
 			{
 				throw new InvalidOperationException("Invalid state");
 			}
@@ -188,7 +188,7 @@ namespace SmartHomeDotNet.Mqtt
 				{
 					if (_connectionClients == 0)
 					{
-						_subscription = null;
+						_connection = null;
 						connection.Dispose();
 					}
 				}
@@ -212,7 +212,7 @@ namespace SmartHomeDotNet.Mqtt
 		/// <inheritdoc />
 		public void Dispose()
 		{
-			_subscription.Dispose();
+			_connection.Dispose();
 		}
 
 		private class Subscription : IDisposable

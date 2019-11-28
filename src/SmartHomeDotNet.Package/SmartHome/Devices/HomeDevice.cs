@@ -6,6 +6,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using SmartHomeDotNet.Utils;
 
@@ -20,7 +21,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		// The throttle to wait for the initial device to load before being published
 		// It's frequent (eg. Home Assistant) to be dispatched on multiple MQTT topics, so with this delay we make sure
 		// we have received all the updates of the device before publishing its value.
-		// Note: We don't want to package this in the MqqtDeviceHost (or any other device host) as we want to be able to 
+		// Note: We don't want to package this in the MqttDeviceHost (or any other device host) as we want to be able to 
 		//		 apply this delay only when this HomeDevice is used using the Awaiter.
 		private static readonly TimeSpan _initialThrottling = TimeSpan.FromMilliseconds(50);
 
@@ -105,41 +106,73 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		public struct Awaiter : INotifyCompletion
 		{
 			private readonly HomeDevice<TDevice> _owner;
-			private TaskAwaiter<TDevice>? _awaiter;
+
+			private TaskAwaiter<TDevice> _awaiter;
+			private int _awaiterState;
+
+			private static class States
+			{
+				public const int None = 0;
+				public const int Initializing = 1;
+				public const int Ready = 2;
+			}
 
 			public Awaiter(HomeDevice<TDevice> device)
 			{
 				_owner = device;
-				_awaiter = null;
+				_awaiter = default;
+				_awaiterState = States.None;
 			}
 
-			public bool IsCompleted => _owner._hasPersisted;
+			public bool IsCompleted => _owner._hasPersisted || (_awaiterState == States.Ready && _awaiter.IsCompleted);
 
 			public TDevice GetResult()
-				=> _owner._hasPersisted
+				=> _owner._hasPersisted 
 					? _owner._lastPersisted
-					: throw new InvalidOperationException("This awaiter cannot run synchronously.");
+					: GetOrCreateAwaiter().GetResult();
 
-			public async void OnCompleted(Action continuation)
+			public void OnCompleted(Action continuation)
 			{
-				if (_owner._hasPersisted)
+				if (IsCompleted)
 				{
 					continuation();
 				}
 				else
 				{
-					if (_awaiter == null)
-					{
-						_awaiter = _owner
-							._device
-							.Throttle(_initialThrottling)
-							.FirstAsync()
-							.ToTask(AsyncContext.CurrentToken)
-							.GetAwaiter();
-					}
-
-					_awaiter.Value.OnCompleted(() => continuation());
+					GetOrCreateAwaiter().OnCompleted(continuation);
 				}
+			}
+
+			private TaskAwaiter<TDevice> GetOrCreateAwaiter()
+			{
+				while (_awaiterState != States.Ready)
+				{
+					if (Interlocked.CompareExchange(ref _awaiterState, States.None, States.Initializing) == States.None)
+					{
+						try
+						{
+							_awaiter = _owner
+								._device
+								.Throttle(_initialThrottling)
+								.FirstAsync()
+								.ToTask(AsyncContext.CurrentToken)
+								.GetAwaiter();
+							_awaiterState = States.Ready;
+							return _awaiter;
+						}
+						catch
+						{
+							_awaiterState = States.None;
+							throw;
+						}
+					}
+					else
+					{
+						Thread.SpinWait(3);
+					}
+				}
+
+				return _awaiter;
 			}
 		}
 	}
