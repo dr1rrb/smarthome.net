@@ -14,6 +14,7 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			Level = brightness;
 			Color = default;
 			Duration = default;
+			Effect = default;
 		}
 
 		public TurnOn(Color color)
@@ -21,6 +22,7 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			Level = default;
 			Color = color;
 			Duration = default;
+			Effect = default;
 		}
 
 		public TurnOn(TimeSpan transition)
@@ -28,13 +30,39 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			Level = default;
 			Color = default;
 			Duration = transition;
+			Effect = default;
 		}
 
-		public TurnOn(double brightness, Color color)
+		public TurnOn(string effect)
+		{
+			Level = default;
+			Color = default;
+			Duration = default;
+			Effect = effect;
+		}
+
+		public TurnOn(double brightness, string effect)
 		{
 			Level = brightness;
+			Effect = effect;
+			Color = default;
+			Duration = default;
+		}
+
+		public TurnOn(Color color, string effect)
+		{
+			Level = default;
 			Color = color;
 			Duration = default;
+			Effect = effect;
+		}
+
+		public TurnOn(TimeSpan transition, string effect)
+		{
+			Level = default;
+			Color = default;
+			Duration = transition;
+			Effect = effect;
 		}
 
 		public TurnOn(double brightness, TimeSpan transition)
@@ -42,6 +70,31 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			Level = brightness;
 			Color = default;
 			Duration = transition;
+			Effect = default;
+		}
+
+		public TurnOn(double brightness, TimeSpan transition, string effect)
+		{
+			Level = brightness;
+			Color = default;
+			Duration = transition;
+			Effect = effect;
+		}
+
+		public TurnOn(double brightness, Color color)
+		{
+			Level = brightness;
+			Color = color;
+			Duration = default;
+			Effect = default;
+		}
+
+		public TurnOn(double brightness, Color color, string effect)
+		{
+			Level = brightness;
+			Color = color;
+			Effect = effect;
+			Duration = default;
 		}
 
 		public TurnOn(double brightness, Color color, TimeSpan transition)
@@ -49,6 +102,15 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			Level = brightness;
 			Color = color;
 			Duration = transition;
+			Effect = default;
+		}
+
+		public TurnOn(double brightness, Color color, TimeSpan transition, string effect)
+		{
+			Level = brightness;
+			Color = color;
+			Duration = transition;
+			Effect = effect;
 		}
 
 		/// <summary>
@@ -65,5 +127,10 @@ namespace SmartHomeDotNet.SmartHome.Commands
 		/// The optional duration of the fade in for dimmable devices
 		/// </summary>
 		public TimeSpan? Duration { get; set; }
+
+		/// <summary>
+		/// The optional effect for the smart light devices
+		/// </summary>
+		public string Effect { get; set; }
 	}
 }

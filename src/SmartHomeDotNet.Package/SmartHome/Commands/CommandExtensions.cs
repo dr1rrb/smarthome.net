@@ -47,12 +47,28 @@ namespace SmartHomeDotNet.SmartHome.Commands
 			=> device.Host.Execute(new TurnOn(transition), device);
 
 		/// <summary>
+		/// Turns on this device and apply an effect
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, string effect)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(effect), device);
+
+		/// <summary>
 		/// Turns on this device to the given brightness with a fade in transition
 		/// </summary>
 		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
 		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, TimeSpan transition)
 			where T : ISupport<TurnOn>
 			=> device.Host.Execute(new TurnOn(brightness, transition), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness with a fade in transition and an effect
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, TimeSpan transition, string effect)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, transition, effect), device);
 
 		/// <summary>
 		/// Turns on this device to the given brightness and color
@@ -69,6 +85,22 @@ namespace SmartHomeDotNet.SmartHome.Commands
 		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, Color color, TimeSpan transition)
 			where T : ISupport<TurnOn>
 			=> device.Host.Execute(new TurnOn(brightness, color, transition), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness and color, and apply an effect
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, Color color, string effect)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, color, effect), device);
+
+		/// <summary>
+		/// Turns on this device to the given brightness and color with a fade in transition and an effect
+		/// </summary>
+		/// <returns>An <see cref="AsyncContextOperation"/>.</returns>
+		public static AsyncContextOperation TurnOn<T>(this IDevice<T> device, double brightness, Color color, TimeSpan transition, string effect)
+			where T : ISupport<TurnOn>
+			=> device.Host.Execute(new TurnOn(brightness, color, transition, effect), device);
 
 		#endregion
 

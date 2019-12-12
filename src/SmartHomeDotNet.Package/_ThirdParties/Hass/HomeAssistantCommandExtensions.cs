@@ -22,7 +22,8 @@ namespace SmartHomeDotNet.Hass
 						.Add(devices)
 						.AddIfValue("brightness", on.Level, level => (int)(level * 255))
 						.AddIfValue("rgb_color", on.Color)
-						.AddIfValue("transition", on.Duration, out transition);
+						.AddIfValue("transition", on.Duration, out transition)
+						.AddIfValue("effect", on.Effect);
 
 				case Component.InputBoolean:
 				case Component.Switch:
@@ -169,5 +170,15 @@ namespace SmartHomeDotNet.Hass
 
 		public static Dictionary<string, object> AddIfValue(this Dictionary<string, object> parameters, string key, Color? value)
 			=> AddIfValue<Color>(parameters, key, value, color => new int[] { color.R, color.G, color.B });
+
+		public static Dictionary<string, object> AddIfValue(this Dictionary<string, object> parameters, string key, string value)
+		{
+			if (!string.IsNullOrWhiteSpace(value))
+			{
+				parameters.Add(key, value);
+			}
+
+			return parameters;
+		}
 	}
 }
