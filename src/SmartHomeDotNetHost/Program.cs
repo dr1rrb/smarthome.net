@@ -17,7 +17,7 @@ namespace SmartHomeDotNet
 	{
 		public static string WorkingDirectory =
 #if DEBUG
-			Path.Combine(Directory.GetCurrentDirectory(), "bin/Debug/netcoreapp2.1/smarthome");
+			Path.Combine(Directory.GetCurrentDirectory(), "bin/Debug/netcoreapp3.1/smarthome");
 #else
 			"/smarthome";
 #endif
