@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AudioSwitcher.AudioApi" Version="3.0.0" />
+    <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\src\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj" />
   </ItemGroup>
 

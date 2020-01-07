@@ -330,7 +330,8 @@ namespace SmartHomeDotNet.Mqtt
 					// Then subscribe to the message received
 					client
 						.MessageStream
-						.DistinctUntilChanged(MessageComparer.Instance) // WEIRD ! (probably dues to multiple connection from topic and child topics)
+						// TO REMOVE FOR ARIANE
+						//.DistinctUntilChanged(MessageComparer.Instance) // WEIRD ! (probably dues to multiple connection from topic and child topics)
 						.ObserveOn(scheduler)
 						.Do(message => Topics.TryUpdate(message.Topic, message.Payload == null ? null : Encoding.UTF8.GetString(message.Payload), message.Retain))
 						.Subscribe(_ => { }, OnError)

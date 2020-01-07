@@ -13,17 +13,19 @@ namespace SmartHomeDotNet.SmartHome.Automations
 {
 	partial class Automation
 	{
+		private static readonly TimeSpan _oneDay = TimeSpan.FromDays(1);
+
 		protected IDisposable At(TimeSpan timeOfDay, Func<DateTimeOffset, Task> operation, ConcurrentExecutionMode mode = ConcurrentExecutionMode.AbortPrevious)
 		{
 			var now = Scheduler.Now.LocalDateTime;
 			var day = now.Date;
 			if (now.TimeOfDay > timeOfDay)
 			{
-				day += TimeSpan.FromDays(1);
+				day += _oneDay;
 			}
 
 			return Observable
-				.Timer(day + timeOfDay, TimeSpan.FromHours(24), Scheduler)
+				.Timer(day + timeOfDay, _oneDay, Scheduler)
 				.SubscribeWithContext(_ => operation(Scheduler.Now.ToLocalTime()), mode);
 		}
 
@@ -37,10 +39,10 @@ namespace SmartHomeDotNet.SmartHome.Automations
 					var day = now.Date;
 					if (now.TimeOfDay > tod)
 					{
-						day += TimeSpan.FromDays(1);
+						day += _oneDay;
 					}
 
-					return Observable.Timer(day + tod, TimeSpan.FromHours(24), Scheduler);
+					return Observable.Timer(day + tod, _oneDay, Scheduler);
 				})
 				.Switch()
 				.SubscribeWithContext(_ => operation(Scheduler.Now.ToLocalTime()), mode);

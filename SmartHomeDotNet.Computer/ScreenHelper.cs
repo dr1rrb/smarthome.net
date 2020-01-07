@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media.TextFormatting;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.Utils;
 
@@ -14,6 +15,13 @@ namespace SmartHomeDotNet.Computer
 {
 	internal class ScreenHelper
 	{
+		private static ILogger _log;
+
+		static ScreenHelper()
+		{
+			_log = new ScreenHelper().Log();
+		}
+
 		#region External Power settings
 		[DllImport(@"User32", SetLastError = true, EntryPoint = "RegisterPowerSettingNotification", CallingConvention = CallingConvention.StdCall)]
 		private static extern IntPtr RegisterPowerSettingNotification(IntPtr hRecipient, ref Guid PowerSettingGuid, Int32 Flags);
@@ -68,6 +76,8 @@ namespace SmartHomeDotNet.Computer
 
 		public static async Task On(CancellationToken ct)
 		{
+			_log.Debug("Turning screen on");
+
 			try
 			{
 				mouse_event(MOUSEEVENTF_MOVE, 0, 1, 0, UIntPtr.Zero);
@@ -76,7 +86,7 @@ namespace SmartHomeDotNet.Computer
 			}
 			catch (Exception e)
 			{
-				typeof(ScreenHelper).Log().Error("Failed to turn 'on' using mouse moves", e);
+				_log.Error("Failed to turn 'on' using mouse moves", e);
 			}
 
 			try
@@ -85,7 +95,7 @@ namespace SmartHomeDotNet.Computer
 			}
 			catch (Exception e)
 			{
-				typeof(ScreenHelper).Log().Error("Failed to turn 'on' using SendMessage", e);
+				_log.Error("Failed to turn 'on' using SendMessage", e);
 			}
 		}
 
@@ -114,7 +124,7 @@ namespace SmartHomeDotNet.Computer
 									case 0: observer.OnNext(ScreenState.Off); break;
 									case 1: observer.OnNext(ScreenState.On); break;
 									case 2: observer.OnNext(ScreenState.Dimmed); break;
-									default: typeof(ScreenHelper).Log().Info($"Unknown message: {ps.Data}"); break;
+									default: _log.Info($"Unknown message: {ps.Data}"); break;
 								}
 							}
 						}
