@@ -13,7 +13,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Testing", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Gpio", "SmartHomeDotNet.Gpio\SmartHomeDotNet.Gpio.csproj", "{BDF042A5-70EB-4841-807B-A15EAF167CFC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Tests", "SmartHomeDotNet.Tests\SmartHomeDotNet.Tests.csproj", "{1413785D-8B48-496A-A407-DA09794F0C12}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Tests", "SmartHomeDotNet.Tests\SmartHomeDotNet.Tests.csproj", "{1413785D-8B48-496A-A407-DA09794F0C12}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Computer", "..\SmartHomeDotNet.Computer\SmartHomeDotNet.Computer.csproj", "{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +47,10 @@ Global
 		{1413785D-8B48-496A-A407-DA09794F0C12}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1413785D-8B48-496A-A407-DA09794F0C12}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1413785D-8B48-496A-A407-DA09794F0C12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
