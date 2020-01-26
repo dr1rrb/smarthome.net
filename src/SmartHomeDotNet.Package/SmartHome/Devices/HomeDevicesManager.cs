@@ -7,6 +7,7 @@ using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using SmartHomeDotNet.Hass;
+using SmartHomeDotNet.Hass.Api;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices
@@ -42,7 +43,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 				var devices = _devices;
 				if (devices == null)
 				{
-					throw new ObjectDisposedException(nameof(HomeAssistantApi));
+					throw new ObjectDisposedException(nameof(HomeAssistantHttpApi));
 				}
 
 				if (devices.TryGetValue(deviceId, out var device))

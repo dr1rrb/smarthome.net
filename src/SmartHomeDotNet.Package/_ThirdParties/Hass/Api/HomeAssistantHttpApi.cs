@@ -8,12 +8,12 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using SmartHomeDotNet.Utils;
 
-namespace SmartHomeDotNet.Hass
+namespace SmartHomeDotNet.Hass.Api
 {
 	/// <summary>
 	/// Represent the REST API of an <see cref="HomeAssistantHub"/>. (cf. <seealso cref="https://developers.home-assistant.io/docs/en/external_api_rest.html"/>).
 	/// </summary>
-	public class HomeAssistantApi
+	public class HomeAssistantHttpApi
 	{
 		private readonly HttpClient _client;
 		private readonly string _host;
@@ -22,8 +22,8 @@ namespace SmartHomeDotNet.Hass
 		/// Creates a new instance given the uri and teh password of the REST API of a <see cref="HomeAssistantHub"/>.
 		/// </summary>
 		/// <param name="host">The uri of the REST API, eg. IP_ADDRESS:8123</param>
-		/// <param name="apiPassword">The API password configured in your configuration.yml.</param>
-		public HomeAssistantApi(string host, string apiToken)
+		/// <param name="apiToken">The API token of your home assistant hub</param>
+		public HomeAssistantHttpApi(string host, string apiToken)
 		{
 			_host = host;
 
@@ -44,6 +44,7 @@ namespace SmartHomeDotNet.Hass
 		/// <param name="domain">The target domain of this call</param>
 		/// <param name="service">The service to invoke</param>
 		/// <param name="parameters">The parameters of the service (will be Json encoded), or `null` if no parameters</param>
+		/// <param name="transition">The expected duration of the effect of the commend (for instance the fade in/out of a light)</param>
 		/// <returns>An asynchronous <see cref="AsyncContextOperation"/>.</returns>
 		public AsyncContextOperation Execute(string domain, string service, object parameters, TimeSpan? transition = null)
 		{
