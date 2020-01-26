@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
 using System.Text;
+using SmartHomeDotNet.Hass.Api;
 using SmartHomeDotNet.Hass.Commands;
 using SmartHomeDotNet.Mqtt;
 using SmartHomeDotNet.SmartHome.Commands;
@@ -18,7 +19,7 @@ namespace SmartHomeDotNet.Hass
 	/// </summary>
 	public sealed class HomeAssistantDeviceHost : MqttDeviceHost
 	{
-		private readonly HomeAssistantApi _api;
+		private readonly HomeAssistantHttpApi _api;
 
 		private ImmutableList<ICommandAdapter> _commands = ImmutableList<ICommandAdapter>.Empty;
 
@@ -28,7 +29,7 @@ namespace SmartHomeDotNet.Hass
 		/// <param name="mqtt">A client to an MQTT broker</param>
 		/// <param name="baseTopic">The base topic used by the Home Assistant installation</param>
 		/// <param name="scheduler">The scheduler that is used by devices which uses this host</param>
-		public HomeAssistantDeviceHost(MqttClient mqtt, string baseTopic, HomeAssistantApi api, IScheduler scheduler)
+		public HomeAssistantDeviceHost(MqttClient mqtt, string baseTopic, HomeAssistantHttpApi api, IScheduler scheduler)
 			: base(mqtt, device => GetId(device).ToMqttTopic(baseTopic), topic => topic.Values, scheduler)
 		{
 			_api = api;

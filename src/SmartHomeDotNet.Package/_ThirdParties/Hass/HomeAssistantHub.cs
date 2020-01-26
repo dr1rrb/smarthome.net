@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Reactive.Concurrency;
 using SmartHomeDotNet.Hass;
+using SmartHomeDotNet.Hass.Api;
 using SmartHomeDotNet.Mqtt;
 using SmartHomeDotNet.SmartHome.Automations;
 using SmartHomeDotNet.SmartHome.Commands;
@@ -28,7 +29,7 @@ namespace SmartHomeDotNet.Hass
 		/// </summary>
 		/// <param name="scheduler">The scheduler used to run scripts, automations and manage devices of this Home Assistant</param>
 		/// <param name="apiHostName">The host name (and port) of the Home Assistant API (&lt;host&gt;[:port])</param>
-		/// <param name="apiPassword">The API password defined in Home Assistant configuration</param>
+		/// <param name="apiToken">The API token of your home assistant hub</param>
 		/// <param name="mqtt">A client to the MQTT broker used by Home Assistant</param>
 		/// <param name="homeTopic">Defines the base topic that will be used for to publish scenes and automations</param>
 		/// <param name="hassTopic">Defines the base topic used by home assistant state stream</param>
@@ -43,7 +44,7 @@ namespace SmartHomeDotNet.Hass
 			homeTopic = homeTopic.Trim('/', '#', '*');
 			hassTopic = hassTopic.Trim('/', '#', '*');
 
-			var api = new HomeAssistantApi(apiHostName, apiToken);
+			var api = new HomeAssistantHttpApi(apiHostName, apiToken);
 			_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
 
 			Devices = new HomeDevicesManager(_mqttStateStream);
@@ -81,7 +82,7 @@ namespace SmartHomeDotNet.Hass
 		/// <summary>
 		/// Gets the API of this instance of Home Assistant
 		/// </summary>
-		public HomeAssistantApi Api { get; }
+		public HomeAssistantHttpApi Api { get; }
 
 		/// <inheritdoc />
 		public void Dispose()
