@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>SmartHomeDotNet</AssemblyName>
 	<RootNamespace>SmartHomeDotNet</RootNamespace>
 	<PackageId>smarthomedotnet</PackageId>
@@ -16,6 +16,7 @@
     <PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
     <PackageReference Include="dr1rrb.System.Net.Mqtt" Version="0.5.50-beta" />
 	<PackageReference Include="System.Reactive" Version="4.3.2" />
+	<PackageReference Include="System.Text.Json" Version="4.7.0" />
   </ItemGroup>
 
   <ItemGroup>
