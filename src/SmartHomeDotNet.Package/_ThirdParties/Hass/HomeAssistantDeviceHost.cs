@@ -65,32 +65,33 @@ namespace SmartHomeDotNet.Hass
 			return AsyncContextOperation.WhenAll(requests);
 		}
 
-		private AsyncContextOperation ExecuteCore(ICommand command, Component domain, IEnumerable<IDevice> devices)
+		private AsyncContextOperation ExecuteCore(ICommand command, Component component, IEnumerable<IDevice> devices)
 		{
-			string comp = domain;
-
 			foreach (var adapter in _commands)
 			{
-				if (adapter.TryGetData(domain, command, out var data))
+				if (adapter.TryGetData(component, command, out var data))
 				{
-					return _api.Execute(data.Component, data.Service, data.Parameters.Add(devices), data.Transition);
+					return _api.CallService(data.Domain, data.Service, data.Parameters.Add(devices), data.Transition);
 				}
 			}
 
+			// It's acceptable to convert from component to domain here since below we are only supporting core components/domain
+			string domain = component;
+			
 			switch (command)
 			{
 				case TurnOn on:
-					return _api.Execute(comp, "turn_on", on.ToParameters(domain, devices, out var tOn), tOn);
+					return _api.CallService(domain, "turn_on", on.ToParameters(domain, devices, out var tOn), tOn);
 				case TurnOff off:
-					return _api.Execute(comp, "turn_off", off.ToParameters(domain, devices, out var tOff), tOff);
+					return _api.CallService(domain, "turn_off", off.ToParameters(domain, devices, out var tOff), tOff);
 				case Toggle toggle:
-					return _api.Execute(comp, "toggle", toggle.ToParameters(domain, devices, out var tTog), tTog);
+					return _api.CallService(domain, "toggle", toggle.ToParameters(domain, devices, out var tTog), tTog);
 				case ISelectCommand select:
-					return _api.Execute(comp, "select_option", select.ToParameters(domain, devices));
+					return _api.CallService(domain, "select_option", select.ToParameters(domain, devices));
 				case SetSpeed setSpeed:
-					return _api.Execute(comp, "set_speed", setSpeed.ToParameters(domain, devices));
+					return _api.CallService(domain, "set_speed", setSpeed.ToParameters(domain, devices));
 				case SetText setText:
-					return _api.Execute(comp, "set_value", setText.ToParameters(domain, devices));
+					return _api.CallService(domain, "set_value", setText.ToParameters(domain, devices));
 
 				default:
 					throw new NotSupportedException($"Command {command.GetType()} is not supported.");

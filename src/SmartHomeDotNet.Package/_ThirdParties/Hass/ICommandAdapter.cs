@@ -10,7 +10,7 @@ namespace SmartHomeDotNet.Hass
 	/// <example>
 	/// public class SetTextAdapter : ICommandAdapter
 	///	{
-	///		public bool TryGetData(Component domain, ICommand command, out CommandData data)
+	///		public bool TryGetData(Component component, ICommand command, out CommandData data)
 	///		{
 	///			if (command is SetText setText)
 	///			{
@@ -28,10 +28,10 @@ namespace SmartHomeDotNet.Hass
 		/// <summary>
 		/// Attempt to convert a generic <see cref="ICommand"/> to a <see cref="CommandData"/>
 		/// </summary>
-		/// <param name="domain">The domain of the entities to which the command is going to be sent</param>
+		/// <param name="component">The component of the entities to which the command is going to be sent</param>
 		/// <param name="command">The comment to adapt</param>
 		/// <param name="data">The structured data that is going to be sent to HA</param>
 		/// <returns>A boolean which indicates if this adapter is able to generate a valid data or not.</returns>
-		bool TryGetData(Component domain, ICommand command, out CommandData data);
+		bool TryGetData(Component component, ICommand command, out CommandData data);
 	}
 }

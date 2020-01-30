@@ -39,14 +39,14 @@ namespace SmartHomeDotNet.Hass.Api
 		}
 
 		/// <summary>
-		/// Executes an API call
+		/// Call a service within a specific domain <seealso cref="https://developers.home-assistant.io/docs/en/external_api_rest.html#post-apiservicesltdomainltservice"/>.
 		/// </summary>
 		/// <param name="domain">The target domain of this call</param>
 		/// <param name="service">The service to invoke</param>
 		/// <param name="parameters">The parameters of the service (will be Json encoded), or `null` if no parameters</param>
 		/// <param name="transition">The expected duration of the effect of the commend (for instance the fade in/out of a light)</param>
 		/// <returns>An asynchronous <see cref="AsyncContextOperation"/>.</returns>
-		public AsyncContextOperation Execute(string domain, string service, object parameters, TimeSpan? transition = null)
+		public AsyncContextOperation CallService(string domain, string service, object parameters, TimeSpan? transition = null)
 		{
 			if (transition.GetValueOrDefault() > TimeSpan.Zero)
 			{
