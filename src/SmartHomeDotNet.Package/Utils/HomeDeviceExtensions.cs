@@ -26,16 +26,16 @@ namespace SmartHomeDotNet.Utils
 		/// <typeparam name="T">Type of the device</typeparam>
 		/// <param name="device">The home device</param>
 		/// <param name="predicate">The predicate</param>
-		/// <param name="assumeIntialState">Determines if the <paramref name="predicate" /> result should be validated or not (cf Remarks)</param>
+		/// <param name="assumeInitialState">Determines if the <paramref name="predicate" /> result should be validated or not (cf Remarks)</param>
 		/// <remarks>
-		/// If the flag <see cref="assumeIntialState"/> is set, all values of the device will be ignored until the predicates returns `true`.
+		/// If the flag <see cref="assumeInitialState"/> is set, all values of the device will be ignored until the predicates returns `true`.
 		/// This is useful to filter out initial states until a state is effectively applied.
 		/// </remarks>
 		/// <returns>An async context that will be cancelled (cf. <see cref="AsyncContext.Cancel"/>) if the <paramref  name="predicate" /> returns `false`.</returns>
-		public static AsyncContext While<T>(this HomeDevice<T> device, Predicate<T> predicate, bool assumeIntialState = true)
+		public static AsyncContext While<T>(this HomeDevice<T> device, Predicate<T> predicate, bool assumeInitialState = true)
 		{
 			var isValid = device.Select(dev => predicate(dev));
-			if (assumeIntialState)
+			if (assumeInitialState)
 			{
 				isValid = isValid.SkipWhile(state => !state);
 			}
