@@ -9,7 +9,7 @@ namespace SmartHomeDotNet.Hass.Commands
 	/// <summary>
 	/// Device extensions for the <see cref="SetText"/> command
 	/// </summary>
-	public static class SetTextExtensions
+	public static class TextInputExtensions
 	{
 		/// <summary>
 		/// Set the text value of this input text
