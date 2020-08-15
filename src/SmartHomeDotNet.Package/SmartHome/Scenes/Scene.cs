@@ -120,13 +120,13 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 		/// <returns>An asynchronous operation that will complete when this scene is over.</returns>
 		public async Task Run(CancellationToken ct, RunOption options = RunOption.IgnoreIfRunning)
 		{
+			if (IsRunning && options == RunOption.IgnoreIfRunning)
+			{
+				return;
+			}
+
 			try
 			{
-				if (IsRunning && options == RunOption.IgnoreIfRunning)
-				{
-					return;
-				}
-
 				// Set _isRunning prior to abort pending, so there is no flicker of 'IsRunning'
 				// Note: we use a int as at this point we already have a running instance which will be aborted below
 				Interlocked.Increment(ref _isRunning);

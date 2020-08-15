@@ -114,7 +114,7 @@ namespace SmartHomeDotNet.Utils
 					"An AsyncContextOperation was created out of the scope of an AsyncContext. "
 					+ "This means that it will run independently and some exception might be muted silently."
 					+ "If this is expected, make sure to properly handle the lifetime of this AsyncOperation "
-					+ "and consider to invoke 'ToTask(Options.Extended | Options.Exceptions)' in order to handle exception.");
+					+ "and consider to invoke 'ToTask(Options.Extent | Options.Exceptions)' in order to handle exception.");
 
 				Run();
 			}

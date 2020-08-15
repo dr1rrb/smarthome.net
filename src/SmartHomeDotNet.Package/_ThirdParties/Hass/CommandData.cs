@@ -10,26 +10,26 @@ namespace SmartHomeDotNet.Hass
 	/// </summary>
 	public struct CommandData
 	{
-		public CommandData(Component component, string service, Dictionary<string, object> parameters, TimeSpan? transition = null)
+		public CommandData(Domain domain, string service, Dictionary<string, object> data, TimeSpan? transition = null)
 		{
-			Component = component;
+			Domain = domain;
 			Service = service;
-			Parameters = parameters.ToImmutableDictionary();
+			Data = data.ToImmutableDictionary();
 			Transition = transition;
 		}
 
-		public CommandData(Component component, string service, IImmutableDictionary<string, object> parameters, TimeSpan? transition = null)
+		public CommandData(Domain domain, string service, IImmutableDictionary<string, object> data, TimeSpan? transition = null)
 		{
-			Component = component;
+			Domain = domain;
 			Service = service;
-			Parameters = parameters;
+			Data = data;
 			Transition = transition;
 		}
 
 		/// <summary>
-		/// The target component on HA
+		/// The target domain on HA
 		/// </summary>
-		public Component Component { get; }
+		public Domain Domain { get; }
 
 		/// <summary>
 		/// The service to invoke on the component
@@ -39,7 +39,7 @@ namespace SmartHomeDotNet.Hass
 		/// <summary>
 		/// The parameters of the service
 		/// </summary>
-		public IImmutableDictionary<string, object> Parameters { get; }
+		public IImmutableDictionary<string, object> Data { get; }
 
 		/// <summary>
 		/// An optional duration of the effect of the command (cf. remarks)
