@@ -109,12 +109,12 @@ namespace SmartHomeDotNet.Hass.Api
 			}
 
 			#region Commands
-			public async Task Execute<TCommand>(TCommand command, CancellationToken ct)
+			public async Task<string> Execute<TCommand>(TCommand command, CancellationToken ct)
 				where TCommand : HomeAssistantCommand
 			{
 				using (var sender = await Send(command, ct))
 				{
-					await sender.GetResult();
+					return await sender.GetResult();
 				}
 			}
 

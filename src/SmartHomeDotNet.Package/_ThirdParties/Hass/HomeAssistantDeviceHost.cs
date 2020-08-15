@@ -71,7 +71,7 @@ namespace SmartHomeDotNet.Hass
 			{
 				if (adapter.TryGetData(component, command, out var data))
 				{
-					return _api.CallService(data.Domain, data.Service, data.Parameters.Add(devices), data.Transition);
+					return _api.CallService(data.Domain, data.Service, data.Data.Add(devices), data.Transition);
 				}
 			}
 

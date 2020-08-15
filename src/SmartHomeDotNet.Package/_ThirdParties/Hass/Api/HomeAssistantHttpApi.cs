@@ -43,10 +43,10 @@ namespace SmartHomeDotNet.Hass.Api
 		/// </summary>
 		/// <param name="domain">The target domain of this call</param>
 		/// <param name="service">The service to invoke</param>
-		/// <param name="parameters">The parameters of the service (will be Json encoded), or `null` if no parameters</param>
+		/// <param name="data">The parameters of the service (will be Json encoded), or `null` if no parameters</param>
 		/// <param name="transition">The expected duration of the effect of the commend (for instance the fade in/out of a light)</param>
 		/// <returns>An asynchronous <see cref="AsyncContextOperation"/>.</returns>
-		public AsyncContextOperation CallService(string domain, string service, object parameters, TimeSpan? transition = null)
+		public AsyncContextOperation CallService(string domain, string service, object data, TimeSpan? transition = null)
 		{
 			if (transition.GetValueOrDefault() > TimeSpan.Zero)
 			{
@@ -59,9 +59,9 @@ namespace SmartHomeDotNet.Hass.Api
 
 			async Task Send(CancellationToken ct)
 			{
-				var content = parameters == null
+				var content = data == null
 					? null
-					: new StringContent(JsonConvert.SerializeObject(parameters), Encoding.UTF8, "application/json");
+					: new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
 				var response = await _client.PostAsync($"https://{_host}/api/services/{domain}/{service}", content, ct);
 
 				response.EnsureSuccessStatusCode();
