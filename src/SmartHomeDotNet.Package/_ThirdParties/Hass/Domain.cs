@@ -22,6 +22,8 @@ namespace SmartHomeDotNet.Hass
 
 		public const string InputText = "input_text";
 
+		public const string Lock = "lock";
+
 		/// <summary>
 		/// The name of this component
 		/// </summary>

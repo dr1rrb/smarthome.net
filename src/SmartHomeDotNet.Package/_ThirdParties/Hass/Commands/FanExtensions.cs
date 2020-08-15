@@ -10,7 +10,7 @@ namespace SmartHomeDotNet.Hass.Commands
 	/// <summary>
 	/// Device extensions for the <see cref="SetSpeed"/> command
 	/// </summary>
-	public static class SetSpeedExtensions
+	public static class FanExtensions
 	{
 		/// <summary>
 		/// Sets the speed of one this fan
