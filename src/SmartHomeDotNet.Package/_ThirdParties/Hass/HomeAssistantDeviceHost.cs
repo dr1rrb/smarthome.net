@@ -21,7 +21,7 @@ namespace SmartHomeDotNet.Hass
 	{
 		private readonly HomeAssistantHttpApi _api;
 
-		private ImmutableList<ICommandAdapter> _commands = ImmutableList.Create<ICommandAdapter>(new LockAdapter());
+		private ImmutableList<ICommandAdapter> _commands = ImmutableList.Create<ICommandAdapter>(new LockAdapter(), new CoverAdapter());
 
 		/// <summary>
 		/// Creates a new instance
