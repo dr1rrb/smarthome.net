@@ -8,6 +8,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Threading.Tasks;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Hass.Api
@@ -62,9 +63,54 @@ namespace SmartHomeDotNet.Hass.Api
 		/// <returns>An observable sequence of events</returns>
 		public IObservable<HomeAssistantEvent> Observe(string eventType)
 			=> ImmutableInterlocked.GetOrAdd(ref _eventListeners, eventType.ToLowerInvariant(), t => new EventListener(this, t));
+
+		/// <summary>
+		/// Send a command to Home-Assistant
+		/// </summary>
+		/// <param name="command">The command to send</param>
+		/// <returns>A task that will complete once the command has been sent to HA</returns>
+		public async Task Send(HomeAssistantCommand command, CancellationToken ct)
+		{
+			using (EnsureConnected())
+			{
+				var connection = GetConnection();
+				await connection.Execute(command, ct);
+			}
+		}
+
+		/// <summary>
+		/// Send a command to Home-Assistant
+		/// </summary>
+		/// <typeparam name="TResult"></typeparam>
+		/// <param name="command">The command to send</param>
+		/// <returns>A task that will complete once the command has been sent to HA with the response</returns>
+		public async Task<TResult> Send<TResult>(HomeAssistantCommand command, CancellationToken ct)
+		{
+			using (EnsureConnected())
+			{
+				var connection = GetConnection();
+				var resultStr = await connection.Execute(command, ct);
+
+				return JsonSerializer.Deserialize<TResult>(resultStr, JsonReadOpts);
+			}
+		}
 		#endregion
 
 		#region Connection management
+		internal bool IsConnected(out IDisposable connectionHandled)
+		{
+			if (_connectionUsers <= 0)
+			{
+				connectionHandled = default;
+				return false;
+			}
+			else
+			{
+				connectionHandled = EnsureConnected();
+				return true;
+			}
+		}
+
 		private IDisposable EnsureConnected()
 		{
 			CheckDisposed();
