@@ -30,7 +30,7 @@ namespace SmartHomeDotNet.Computer
 
 		private async Task Execute(ICommand command, CancellationToken ct)
 		{
-			using (await _gate.LockAsync(ct))
+			using var _ = await _gate.LockAsync(ct);
 			switch (command)
 			{
 				case TurnOn on:

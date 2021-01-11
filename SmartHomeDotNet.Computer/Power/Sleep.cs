@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Linq;
+using SmartHomeDotNet.SmartHome.Commands;
 
 namespace SmartHomeDotNet.Computer
 {
-	public enum ComputerDeviceId
+	public struct Sleep : ICommand
 	{
-		Screen = 1,
-		Power = 2,
 	}
 }
