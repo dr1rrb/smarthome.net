@@ -78,6 +78,10 @@ namespace SmartHomeDotNet.Computer.Audio
 							case Toggle toggle:
 								dev.AudioEndpointVolume.Mute = !dev.AudioEndpointVolume.Mute;
 								break;
+
+							case SetVolume volume:
+								dev.AudioEndpointVolume.MasterVolumeLevel = volume.Volume;
+								break;
 						}
 					}
 				}
