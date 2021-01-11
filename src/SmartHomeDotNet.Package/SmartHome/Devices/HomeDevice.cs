@@ -16,7 +16,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	/// Represents a lazy holder of a remote device which will maintain device's state internally for fast access.
 	/// </summary>
 	/// <typeparam name="TDevice">The type of the device</typeparam>
-	public sealed class HomeDevice<TDevice> : IObservable<TDevice>, IDisposable, IDevice<TDevice>
+	public class HomeDevice<TDevice> : IObservable<TDevice>, IDisposable, IDevice<TDevice>
 	{
 		// The throttle to wait for the initial device to load before being published
 		// It's frequent (eg. Home Assistant) to be dispatched on multiple MQTT topics, so with this delay we make sure
@@ -25,11 +25,11 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		//		 apply this delay only when this HomeDevice is used using the Awaiter.
 		private static readonly TimeSpan _initialThrottling = TimeSpan.FromMilliseconds(50);
 
-		private readonly IConnectableObservable<TDevice> _source;
+		protected readonly IConnectableObservable<TDevice> _source;
 
 		private readonly Subject<TDevice> _device = new Subject<TDevice>();
-		private TDevice _lastPersisted;
-		private bool _hasPersisted;
+		protected TDevice _lastPersisted;
+		protected bool _hasPersisted;
 
 		private readonly SingleAssignmentDisposable _subscription = new SingleAssignmentDisposable();
 
@@ -55,6 +55,28 @@ namespace SmartHomeDotNet.SmartHome.Devices
 					return device;
 				})
 				.Retry(Constants.DefaultRetryDelay, scheduler) // This will retry only for the "toDevice" as the source is already retried
+				.Multicast(_device);
+		}
+
+		protected HomeDevice(IDeviceHost host, object id, IObservable<TDevice> source, Func<TDevice, bool> isPersistent, IScheduler scheduler)
+		{
+			Host = host;
+			Id = id;
+
+			// Here we make sure to cache only the state that are flagged as "persisted" (a.k.a. 'retain' in MQTT)
+			// so we will not replay a "transient" values (e.g. events like button pressed)
+			_source = source
+				.Select(state =>
+				{
+					if (isPersistent(state))
+					{
+						_lastPersisted = state;
+						_hasPersisted = true;
+					}
+
+					return state;
+				})
+				.Retry(TimeSpan.FromSeconds(10) /*Constants.DefaultRetryDelay*/, scheduler)
 				.Multicast(_device);
 		}
 
