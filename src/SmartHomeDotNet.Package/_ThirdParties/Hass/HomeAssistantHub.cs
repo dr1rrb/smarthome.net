@@ -1,6 +1,13 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.Dynamic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using System.Security.Authentication.ExtendedProtection;
+using System.Threading;
+using System.Threading.Tasks;
 using SmartHomeDotNet.Hass;
 using SmartHomeDotNet.Hass.Api;
 using SmartHomeDotNet.Mqtt;
@@ -8,6 +15,7 @@ using SmartHomeDotNet.SmartHome.Automations;
 using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.SmartHome.Scenes;
+using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Hass
 {
@@ -20,6 +28,7 @@ namespace SmartHomeDotNet.Hass
 		public const string DefaultTopic = "homeassistant";
 
 		private readonly HomeAssistantDeviceHost _mqttStateStream;
+		private HomeAssistantWebSocketApi _ws;
 
 		/// <summary>
 		/// Creates an instance of a Home Assistant hub which will use MQTT state stream
@@ -51,6 +60,8 @@ namespace SmartHomeDotNet.Hass
 			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler);
 			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler);
 			Api = api;
+
+			_ws = new HomeAssistantWebSocketApi(new Uri($"ws://{apiHostName}"), apiToken);
 		}
 
 		/// <summary>
@@ -83,6 +94,47 @@ namespace SmartHomeDotNet.Hass
 		/// Gets the API of this instance of Home Assistant
 		/// </summary>
 		public HomeAssistantHttpApi Api { get; }
+
+		/// <summary>
+		/// Call a service on Home-Assistant
+		/// </summary>
+		/// <param name="command">The call service command to send to HA</param>
+		/// <returns></returns>
+		public AsyncContextOperation Send(CallServiceCommand command) => Send(command as HomeAssistantCommand);
+
+		internal AsyncContextOperation Send(HomeAssistantCommand command)
+		{
+			if (command is CallServiceCommand callService)
+			{
+				if (_ws.IsConnected(out var connection))
+				{
+					return callService.Transition.HasValue
+						? AsyncContextOperation.StartNew(Send, Extent)
+						: AsyncContextOperation.StartNew(Send);
+
+					async Task Send(CancellationToken ct)
+					{
+						using (connection)
+						{
+							await _ws.Send(command, ct);
+						}
+					}
+
+					async Task Extent(CancellationToken ct)
+					{
+						await Task.Delay(callService.Transition.Value);
+					}
+				}
+				else
+				{
+					return Api.CallService(callService.Domain, callService.Service, callService.Data, callService.Transition);
+				}
+			}
+			else
+			{
+				return AsyncContextOperation.StartNew(async ct => await _ws.Send(command, ct));
+			}
+		}
 
 		/// <inheritdoc />
 		public void Dispose()

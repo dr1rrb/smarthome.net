@@ -28,7 +28,7 @@ namespace SmartHomeDotNet.Computer
 
 		/// <inheritdoc />
 		public IObservable<DeviceState> GetAndObserveState(IDevice device)
-			=> Get((ComputerDeviceId)device.Id).GetAndObserveState();
+			=> Get((ComputerDeviceId) device.Id).GetAndObserveState();
 
 		/// <inheritdoc />
 		public AsyncContextOperation Execute(ICommand command, IDevice device)
@@ -43,13 +43,12 @@ namespace SmartHomeDotNet.Computer
 
 		private IComputerDevice Create(ComputerDeviceId device)
 		{
-			switch (device)
+			return device switch
 			{
-				case ComputerDeviceId.Screen:
-					return new ScreenDevice();
-				default:
-					throw new ArgumentOutOfRangeException(nameof(device), $"Device '{device}' is not supported.");
-			}
+				ComputerDeviceId.Screen => new ScreenDevice(),
+				ComputerDeviceId.Power => new PowerDevice(),
+				_ => throw new ArgumentOutOfRangeException(nameof(device), $"Device '{device}' is not supported.")
+			};
 		}
 	}
 }

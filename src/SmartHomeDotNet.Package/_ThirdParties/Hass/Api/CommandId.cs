@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -15,7 +17,7 @@ namespace SmartHomeDotNet.Hass.Api
 
 		private CommandId(int value)
 		{
-			Debug.Assert(_current.Value == null, "Cannot stack multiple command ids");
+			Debug.Assert(_current.Value == null || _current.Value == Null, "Cannot stack multiple command ids");
 
 			Value = value;
 			_current.Value = this;

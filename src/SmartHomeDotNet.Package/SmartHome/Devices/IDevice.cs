@@ -6,7 +6,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	/// <summary>
 	/// Represents a device of a smart home
 	/// </summary>
-	public interface IDevice
+	public interface IDevice // ==> IDeviceInfo
 	{
 		/// <summary>
 		/// The identifier of this device
