@@ -6,7 +6,7 @@ using SmartHomeDotNet.SmartHome.Devices_2;
 
 namespace SmartHomeDotNet.Computer.Audio
 {
-	public class Speaker : Device, ISupport<TurnOn>, ISupport<TurnOff>, IDeviceState
+	public class Speaker : Device, ISupport<TurnOn>, ISupport<TurnOff>, ISupport<SetVolume>, IDeviceState
 	{
 		public Speaker(string id, string name, float volume, bool muted)
 		{
