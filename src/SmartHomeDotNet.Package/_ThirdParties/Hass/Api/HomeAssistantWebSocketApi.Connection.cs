@@ -98,7 +98,7 @@ namespace SmartHomeDotNet.Hass.Api
 					switch (state)
 					{
 						case State.Authenticating:
-							await _client.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new AuthRequest(_owner._authToken), JsonWriteOpts), WebSocketMessageType.Text, true, ct2);
+							await _client.SendAsync(new ArraySegment<byte>(JsonSerializer.SerializeToUtf8Bytes(new AuthRequest(_owner._authToken), JsonWriteOpts)), WebSocketMessageType.Text, true, ct2);
 							break;
 
 						case State.Disconnected:
@@ -132,7 +132,7 @@ namespace SmartHomeDotNet.Hass.Api
 					var sender = new PendingCommand(command, this, id, ct);
 					var payload = JsonSerializer.SerializeToUtf8Bytes(command, JsonWriteOpts);
 
-					await _client.SendAsync(payload, WebSocketMessageType.Text, true, ct);
+					await _client.SendAsync(new ArraySegment<byte>(payload), WebSocketMessageType.Text, true, ct);
 
 					return sender;
 				}

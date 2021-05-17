@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using SmartHomeDotNet.SmartHome.Devices;
 
@@ -19,7 +20,7 @@ namespace SmartHomeDotNet.Hass.Entities
 		/// <summary>
 		/// Gets the defined value
 		/// </summary>
-		public double Value => double.Parse(Raw.state);
+		public double Value => double.Parse(Raw.state, CultureInfo.InvariantCulture);
 
 		public static implicit operator double(InputNumber input)
 			=> input.Value;
