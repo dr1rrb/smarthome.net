@@ -28,7 +28,9 @@ namespace SmartHomeDotNet.SmartHome.Devices_2
 		/// <returns>An async operation</returns>
 		AsyncContextOperation Execute(ICommand command, params TIdentifier[] devices);
 
+#if NETSTANDARD2_1
 		AsyncContextOperation IDeviceActuator.Execute(ICommand command, params object[] devices)
 			=> Execute(command, devices.Cast<TIdentifier>().ToArray());
+#endif
 	}
 }

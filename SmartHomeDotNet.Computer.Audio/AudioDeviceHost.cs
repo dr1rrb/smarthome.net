@@ -57,6 +57,10 @@ namespace SmartHomeDotNet.Computer.Audio
 				});
 
 		/// <inheritdoc />
+		AsyncContextOperation IDeviceActuator.Execute(ICommand command, params object[] devices)
+			=> Execute(command, devices.Cast<AudioDeviceIdentifier>().ToArray());
+
+		/// <inheritdoc />
 		public AsyncContextOperation Execute(ICommand command, params AudioDeviceIdentifier[] devices)
 			=> AsyncContextOperation.StartNew(async ct =>
 			{
