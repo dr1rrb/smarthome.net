@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using SmartHomeDotNet.SmartHome.Devices;
 
@@ -19,7 +20,7 @@ namespace SmartHomeDotNet.Hass.Entities
 		/// <summary>
 		/// Gets the defined VALUE
 		/// </summary>
-		public TimeSpan Time => TimeSpan.FromSeconds(double.Parse(Raw.timestamp));
+		public TimeSpan Time => TimeSpan.Parse(Raw.state, CultureInfo.InvariantCulture);
 
 		public static implicit operator TimeSpan(InputTimeSpan input)
 			=> input.Time;

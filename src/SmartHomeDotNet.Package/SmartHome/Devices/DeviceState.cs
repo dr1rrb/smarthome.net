@@ -20,7 +20,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		public DeviceState(object deviceId, ImmutableDictionary<string, string> properties, bool isPersistedState)
 		{
 			DeviceId = deviceId;
-			Properties = properties;
+			Properties = properties; // TODO .WithComparers(StringComparer.OrdinalIgnoreCase); => Actually we should even allow snake casing vs camel case
 			IsPersistedState = isPersistedState;
 		}
 
