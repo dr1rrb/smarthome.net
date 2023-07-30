@@ -36,6 +36,8 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 			/// </summary>
 			AbortPending,
 
+			// Queue
+			// Parallel
 			// AttachToPending
 			// AttachToPendingWithCancellationToken
 		}
@@ -158,7 +160,7 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 		/// Request to start the scene
 		/// </summary>
 		/// <remarks>This is a "fire and forget". If you need to track the execution, you should use <see cref="Run"/>.</remarks>
-		public void Start()
+		public void Start(RunOption options = RunOption.IgnoreIfRunning)
 		{
 			// This method is fire and forget, prevent flowing of the AsyncContext
 			using (AsyncContext.None())
@@ -167,7 +169,7 @@ namespace SmartHomeDotNet.SmartHome.Scenes
 				{
 					try
 					{
-						await Run(ct);
+						await Run(ct, options);
 					}
 					catch (Exception e)
 					{

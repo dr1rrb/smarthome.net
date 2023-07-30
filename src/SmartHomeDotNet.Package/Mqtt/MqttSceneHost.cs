@@ -61,16 +61,20 @@ namespace SmartHomeDotNet.Mqtt
 				AvailabilityTopic = _mqtt.AvailabilityTopic,
 				Icon = "mdi:script-text-outline"
 			};
+			var settings = new JsonSerializerSettings
+			{
+				NullValueHandling = NullValueHandling.Ignore,
+				Formatting = Formatting.None
+			};
 
 			// With first publish the scene using the "id" as "name" so Home assistant
 			// will use it as "entity_id" (which cannot be configured from discovery component)
 			// Then we publish it a second time using the right name.
 			// Note: HA will not generate 2 different devices as we are providing device "unique_id" which stays the same.
 			// Note: This is a patch which works only if HA is up when this config is published, if not, you can still change the entity_id from the UI
-
-			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
+			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config, settings), retain: !_mqtt.IsTestEnvironment);
 			config.Name = scene.Name;
-			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config), retain: !_mqtt.IsTestEnvironment);
+			await _mqtt.Publish(ct, $"homeassistant/switch/{id}/config", JsonConvert.SerializeObject(config, settings), retain: !_mqtt.IsTestEnvironment);
 		}
 
 		/// <inheritdoc />

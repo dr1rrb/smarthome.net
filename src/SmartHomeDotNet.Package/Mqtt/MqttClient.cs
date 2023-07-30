@@ -442,7 +442,7 @@ namespace SmartHomeDotNet.Mqtt
 
 			public Task Publish(CancellationToken ct, string topic, string value, QualityOfService qos, bool retain)
 			{
-				this.Log().Info($"Publishing ({(retain?"retained": "volatile")}) message to topic '{topic}': {value}");
+				this.Log().Debug($"Publishing ({(retain?"retained": "volatile")}) message to topic '{topic}': {value}");
 
 				var message = new MqttApplicationMessage(topic, Encoding.UTF8.GetBytes(value), retain);
 				Task Send(IMqttClient client) => client.PublishAsync(message, (MqttQualityOfService)qos, retain);

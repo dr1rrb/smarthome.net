@@ -28,7 +28,6 @@ namespace SmartHomeDotNet.Hass
 		public const string DefaultTopic = "homeassistant";
 
 		private readonly HomeAssistantDeviceHost _mqttStateStream;
-		private HomeAssistantWebSocketApi _ws;
 
 		/// <summary>
 		/// Creates an instance of a Home Assistant hub which will use MQTT state stream
@@ -42,13 +41,15 @@ namespace SmartHomeDotNet.Hass
 		/// <param name="mqtt">A client to the MQTT broker used by Home Assistant</param>
 		/// <param name="homeTopic">Defines the base topic that will be used for to publish scenes and automations</param>
 		/// <param name="hassTopic">Defines the base topic used by home assistant state stream</param>
+		/// <param name="enableDiscovery">Enabled scenes and automations discovery</param>
 		public HomeAssistantHub(
 			IScheduler scheduler, 
 			string apiHostName,
 			string apiToken,
 			MqttClient mqtt, 
 			string homeTopic = DefaultHomeTopic, 
-			string hassTopic = DefaultTopic)
+			string hassTopic = DefaultTopic,
+			bool enableDiscovery = true)
 		{
 			homeTopic = homeTopic.Trim('/', '#', '*');
 			hassTopic = hassTopic.Trim('/', '#', '*');
@@ -57,11 +58,10 @@ namespace SmartHomeDotNet.Hass
 			_mqttStateStream = new HomeAssistantDeviceHost(mqtt, hassTopic, api, scheduler);
 
 			Devices = new HomeDevicesManager(_mqttStateStream);
-			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler);
-			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler);
+			Scenes = new MqttSceneHost(mqtt, homeTopic, scheduler, enableDiscovery);
+			Automations = new MqttAutomationHost(mqtt, homeTopic, scheduler, enableDiscovery);
 			Api = api;
-
-			_ws = new HomeAssistantWebSocketApi(new Uri($"ws://{apiHostName}"), apiToken);
+			SocketApi = new HomeAssistantWebSocketApi(new Uri($"ws://{apiHostName}"), apiToken);
 		}
 
 		/// <summary>
@@ -96,6 +96,11 @@ namespace SmartHomeDotNet.Hass
 		public HomeAssistantHttpApi Api { get; }
 
 		/// <summary>
+		/// Gets the websocket API of this instance of Home Assistant
+		/// </summary>
+		public HomeAssistantWebSocketApi SocketApi { get; }
+
+		/// <summary>
 		/// Call a service on Home-Assistant
 		/// </summary>
 		/// <param name="command">The call service command to send to HA</param>
@@ -106,7 +111,7 @@ namespace SmartHomeDotNet.Hass
 		{
 			if (command is CallServiceCommand callService)
 			{
-				if (_ws.IsConnected(out var connection))
+				if (SocketApi.IsConnected(out var connection))
 				{
 					return callService.Transition.HasValue
 						? AsyncContextOperation.StartNew(Send, Extent)
@@ -116,7 +121,7 @@ namespace SmartHomeDotNet.Hass
 					{
 						using (connection)
 						{
-							await _ws.Send(command, ct);
+							await SocketApi.Send(command, ct);
 						}
 					}
 
@@ -132,7 +137,7 @@ namespace SmartHomeDotNet.Hass
 			}
 			else
 			{
-				return AsyncContextOperation.StartNew(async ct => await _ws.Send(command, ct));
+				return AsyncContextOperation.StartNew(async ct => await SocketApi.Send(command, ct));
 			}
 		}
 

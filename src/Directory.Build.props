@@ -9,6 +9,7 @@
 		<RepositoryUrl>https://github.com/dr1rrb/smarthome.net</RepositoryUrl>
 		<PackageTags>iot home-assistant hass mqtt zigbee</PackageTags>
 		<NeutralLanguage>en-US</NeutralLanguage>
+		<LangVersion>latest</LangVersion>
 	</PropertyGroup>
 	
 </Project>
