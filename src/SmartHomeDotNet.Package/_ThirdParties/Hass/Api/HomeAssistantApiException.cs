@@ -16,6 +16,8 @@ namespace SmartHomeDotNet.Hass.Api
 			Unknown = 0, // Not an exception for HA
 
 			Id = 1, // A non-increasing identifier has been supplied.
+
+			//[JsonPropertyName("invalid_format")]
 			Format = 2, // Received message is not in expected format (voluptuous validation error).
 			NotFound = 3,   // Requested item cannot be found
 		}

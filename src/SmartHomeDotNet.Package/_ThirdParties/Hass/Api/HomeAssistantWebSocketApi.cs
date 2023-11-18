@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -18,40 +22,67 @@ namespace SmartHomeDotNet.Hass.Api
 	/// </summary>
 	public partial class HomeAssistantWebSocketApi : IDisposable
 	{
-		internal static readonly JsonSerializerOptions JsonReadOpts = new JsonSerializerOptions
-		{
-			PropertyNameCaseInsensitive = true,
-		};
+		internal static readonly JsonSerializerOptions JsonReadOpts = CreateDefaultJsonReadOptions();
 
-		internal static readonly JsonSerializerOptions JsonWriteOpts = new JsonSerializerOptions
+		internal static readonly JsonSerializerOptions JsonWriteOpts = new()
 		{
 			PropertyNameCaseInsensitive = true,
 			PropertyNamingPolicy = new SnakeCaseNamingPolicy()
 		};
 
+		public static JsonSerializerOptions CreateDefaultJsonReadOptions()
+			=> new()
+			{
+				PropertyNameCaseInsensitive = true,
+				PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
+			};
+
 		private static readonly TimeSpan _abortDelay = TimeSpan.FromSeconds(5);
 
 		private readonly Uri _endpoint;
 		private readonly string _authToken;
-		private readonly IScheduler _scheduler;
+		private readonly IScheduler _socketScheduler;
+		private readonly IScheduler _eventScheduler;
 
 		private int _connectionUsers; // Number of users of the _connection
 		private Connection _connection; // The current connection
 		private readonly ReplaySubject<Connection> _getAndObserveConnection; // An observable sequence to listen connection change for auto-something scenarios
 		private readonly SerialDisposable _connectionAbortion = new SerialDisposable(); // Disposable used to delay the disconnection
 
-		// Listeners are stored on teh root object as they are remanent across connections
+		// Listeners are stored on the root object as they are remanent across connections
 		private ImmutableDictionary<string, EventListener> _eventListeners = ImmutableDictionary<string, EventListener>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
 
 		private bool _isDisposed;
 
-		public HomeAssistantWebSocketApi(Uri endpoint, string authToken, IScheduler scheduler = null)
+		/// <summary>
+		/// Creates a new web-socket API client to an home-assistant instance.
+		/// </summary>
+		/// <param name="host">The home-assistant host name (e.g. ha.myhome.net)</param>
+		/// <param name="authToken">The long live auth token to connect to home-assistant.</param>
+		/// <param name="socketScheduler">The scheduler used to interact with the web socket, or null to create a new <see cref="EventLoopScheduler"/>.</param>
+		/// <param name="eventScheduler">The scheduler used to raise event, or null to use the <see cref="TaskPoolScheduler.Default"/>.</param>
+		/// <exception cref="ArgumentNullException"></exception>
+		public HomeAssistantWebSocketApi(string host, string authToken, IScheduler socketScheduler = null, IScheduler eventScheduler = null)
+			: this(new Uri($"ws://{host}/api/websocket"), authToken, socketScheduler, eventScheduler)
+		{
+		}
+
+		/// <summary>
+		/// Creates a new web-socket API client to an home-assistant instance.
+		/// </summary>
+		/// <param name="endpoint">The home-assistant web-socket endpoint (e.g. ws://ha.myhome.net/api/websocket)</param>
+		/// <param name="authToken">The long live auth token to connect to home-assistant.</param>
+		/// <param name="socketScheduler">The scheduler used to interact with the web socket, or null to create a new <see cref="EventLoopScheduler"/>.</param>
+		/// <param name="eventScheduler">The scheduler used to raise event, or null to use the <see cref="TaskPoolScheduler.Default"/>.</param>
+		/// <exception cref="ArgumentNullException"></exception>
+		public HomeAssistantWebSocketApi(Uri endpoint, string authToken, IScheduler socketScheduler = null, IScheduler eventScheduler = null)
 		{
 			_endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
 			_authToken = authToken ?? throw new ArgumentNullException(nameof(authToken));
-			_scheduler = scheduler ?? TaskPoolScheduler.Default;
+			_socketScheduler = socketScheduler ?? new EventLoopScheduler(info => new Thread(info) { Name = $"WS to {endpoint.Host}" });
+			_eventScheduler = eventScheduler ?? TaskPoolScheduler.Default;
 
-			_getAndObserveConnection = new ReplaySubject<Connection>(1, _scheduler);
+			_getAndObserveConnection = new ReplaySubject<Connection>(1, _socketScheduler);
 		}
 
 		#region Public API
@@ -69,12 +100,14 @@ namespace SmartHomeDotNet.Hass.Api
 		/// </summary>
 		/// <param name="command">The command to send</param>
 		/// <returns>A task that will complete once the command has been sent to HA</returns>
-		public async Task Send(HomeAssistantCommand command, CancellationToken ct)
+		public async Task<JsonElement> Send(HomeAssistantCommand command, CancellationToken ct)
 		{
 			using (EnsureConnected())
 			{
 				var connection = GetConnection();
-				await connection.Execute(command, ct);
+				var resultJson = await connection.Execute(command, ct);
+
+				return resultJson;
 			}
 		}
 
@@ -84,14 +117,23 @@ namespace SmartHomeDotNet.Hass.Api
 		/// <typeparam name="TResult"></typeparam>
 		/// <param name="command">The command to send</param>
 		/// <returns>A task that will complete once the command has been sent to HA with the response</returns>
-		public async Task<TResult> Send<TResult>(HomeAssistantCommand command, CancellationToken ct)
+		public Task<TResult> Send<TResult>(HomeAssistantCommand command, CancellationToken ct)
+			=> Send<TResult>(command, JsonReadOpts, ct);
+
+		/// <summary>
+		/// Send a command to Home-Assistant
+		/// </summary>
+		/// <typeparam name="TResult"></typeparam>
+		/// <param name="command">The command to send</param>
+		/// <returns>A task that will complete once the command has been sent to HA with the response</returns>
+		public async Task<TResult> Send<TResult>(HomeAssistantCommand command, JsonSerializerOptions jsonOptions, CancellationToken ct)
 		{
 			using (EnsureConnected())
 			{
 				var connection = GetConnection();
-				var resultStr = await connection.Execute(command, ct);
+				var resultJson = await connection.Execute(command, ct);
 
-				return JsonSerializer.Deserialize<TResult>(resultStr, JsonReadOpts);
+				return resultJson.Deserialize<TResult>(jsonOptions);
 			}
 		}
 		#endregion
@@ -151,7 +193,7 @@ namespace SmartHomeDotNet.Hass.Api
 
 		private void AbortConnection()
 		{
-			_connectionAbortion.Disposable = _scheduler.Schedule(_abortDelay, () =>
+			_connectionAbortion.Disposable = _socketScheduler.Schedule(_abortDelay, () =>
 			{
 				if (_connectionUsers == 0)
 				{
@@ -200,6 +242,9 @@ namespace SmartHomeDotNet.Hass.Api
 			_connectionUsers = -1;
 			_connectionAbortion.Dispose();
 			_connection?.Dispose();
+
+			(_socketScheduler as IDisposable)?.Dispose();
+			(_eventScheduler as IDisposable)?.Dispose();
 		}
 	}
 }

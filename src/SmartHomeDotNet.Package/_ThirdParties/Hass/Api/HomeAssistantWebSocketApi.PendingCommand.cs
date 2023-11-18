@@ -14,7 +14,7 @@ namespace SmartHomeDotNet.Hass.Api
 			private readonly Connection _connection;
 			private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(10);
 
-			private readonly TaskCompletionSource<string> _result = new TaskCompletionSource<string>();
+			private readonly TaskCompletionSource<JsonElement> _result = new();
 			private readonly CancellationTokenSource _ct;
 
 			public PendingCommand(HomeAssistantCommand command, Connection connection, CommandId id, CancellationToken ct)
@@ -33,12 +33,12 @@ namespace SmartHomeDotNet.Hass.Api
 
 			public HomeAssistantCommand Command { get; }
 
-			public Task<string> GetResult()
+			public Task<JsonElement> GetResult()
 				=> _result.Task;
 
 			public void Completed(JsonElement result)
 			{
-				_result.TrySetResult(result.GetRawText());
+				_result.TrySetResult(result);
 				_connection.UnRegisterPending(this);
 			}
 

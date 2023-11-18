@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.28917.181
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNetHost", "SmartHomeDotNetHost\SmartHomeDotNetHost.csproj", "{B4E239C8-1494-411F-A4CD-7ED8F764D4EC}"
 EndProject
@@ -17,9 +17,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Tests", "Sm
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Computer", "..\SmartHomeDotNet.Computer\SmartHomeDotNet.Computer.csproj", "{7AE1C764-E26F-4E8E-A3E1-B467FAF30002}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Computer.LocalTests", "..\SmartHomeDotNet.Computer.LocalTests\SmartHomeDotNet.Computer.LocalTests.csproj", "{0023B967-E906-4E81-B955-90BEA23ADD2B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Computer.LocalTests", "..\SmartHomeDotNet.Computer.LocalTests\SmartHomeDotNet.Computer.LocalTests.csproj", "{0023B967-E906-4E81-B955-90BEA23ADD2B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHomeDotNet.Computer.Audio", "..\SmartHomeDotNet.Computer.Audio\SmartHomeDotNet.Computer.Audio.csproj", "{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Computer.Audio", "..\SmartHomeDotNet.Computer.Audio\SmartHomeDotNet.Computer.Audio.csproj", "{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeGenerator.Cli", "..\HomeGenerator.Cli\HomeGenerator.Cli.csproj", "{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -63,6 +65,10 @@ Global
 		{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

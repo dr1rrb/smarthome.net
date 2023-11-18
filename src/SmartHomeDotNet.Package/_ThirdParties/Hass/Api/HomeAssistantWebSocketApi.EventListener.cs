@@ -15,7 +15,7 @@ namespace SmartHomeDotNet.Hass.Api
 	{
 		private class EventListener : IObservable<HomeAssistantEvent>
 		{
-			private readonly SerialDisposable _connectionSubscription = new SerialDisposable();
+			private readonly SerialDisposable _connectionSubscription = new();
 			private readonly ReplaySubject<HomeAssistantEvent> _events;
 			private readonly HomeAssistantWebSocketApi _owner;
 			private readonly string _type;
@@ -26,7 +26,7 @@ namespace SmartHomeDotNet.Hass.Api
 			{
 				_owner = owner;
 				_type = type;
-				_events = new ReplaySubject<HomeAssistantEvent>(0, _owner._scheduler);
+				_events = new ReplaySubject<HomeAssistantEvent>(0, _owner._eventScheduler);
 			}
 
 			public void OnNext(JsonElement evt)
@@ -36,7 +36,7 @@ namespace SmartHomeDotNet.Hass.Api
 					// That's sad: we gonna have to re-parse it (GetRawText) ... but System.Text.Json does not allow to extract a node (meh! :/),
 					// and anyway the .Clone() will do almost do the same as it will copy the source text into a memory.
 					// var data = evt.GetProperty("data").Clone();
-					var data = evt.GetProperty("data").GetRawText();
+					var data = evt.GetProperty("data");
 					var time = evt.GetProperty("time_fired").GetDateTimeOffset();
 
 					_events.OnNext(new HomeAssistantEvent(_type, time, data));
@@ -66,7 +66,7 @@ namespace SmartHomeDotNet.Hass.Api
 					void OnConnectionChanged(Connection connection)
 						=> currentConnectionEventSubscription.Disposable = connection == null
 							? Disposable.Empty
-							: _owner._scheduler.ScheduleAsync(connection, SubscribeOnConnection);
+							: _owner._socketScheduler.ScheduleAsync(connection, SubscribeOnConnection);
 				}
 				else
 				{
@@ -116,6 +116,7 @@ namespace SmartHomeDotNet.Hass.Api
 							await connection.Execute(new UnsubscribeCommand(subscriptionId), CancellationToken.None);
 						}
 					}
+					catch (ObjectDisposedException) { }
 					catch (Exception e)
 					{
 						this.Log().Debug($"Failed to un-subscribe from connection: {e}");

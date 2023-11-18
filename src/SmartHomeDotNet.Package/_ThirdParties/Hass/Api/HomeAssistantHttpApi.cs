@@ -15,7 +15,7 @@ namespace SmartHomeDotNet.Hass.Api;
 /// <summary>
 /// Represent the REST API of an <see cref="HomeAssistantHub"/>. (cf. <seealso cref="https://developers.home-assistant.io/docs/en/external_api_rest.html"/>).
 /// </summary>
-public class HomeAssistantHttpApi
+public class HomeAssistantHttpApi : IDisposable
 {
 	private readonly HttpClient _client;
 	private readonly string _host;
@@ -36,7 +36,8 @@ public class HomeAssistantHttpApi
 			DefaultRequestHeaders =
 			{
 				Authorization = new AuthenticationHeaderValue("Bearer", apiToken)
-			}
+			},
+			BaseAddress = new Uri($"https://{_host}/api")
 		};
 	}
 
@@ -75,6 +76,10 @@ public class HomeAssistantHttpApi
 	/// </summary>
 	/// <param name="request">The requests to send</param>
 	/// <returns>The asynchronous response from the server.</returns>
-	public Task<HttpResponseMessage> Send(HttpRequestMessage request)
-		=> _client.SendAsync(request);
+	public Task<HttpResponseMessage> Send(HttpRequestMessage request, CancellationToken ct)
+		=> _client.SendAsync(request, ct);
+
+	/// <inheritdoc />
+	public void Dispose()
+		=> _client.Dispose();
 }

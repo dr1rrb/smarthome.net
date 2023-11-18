@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -8,15 +10,43 @@ using System.Reactive.Threading.Tasks;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using SmartHomeDotNet.Hass;
+using SmartHomeDotNet.SmartHome.Devices_2;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices
 {
+	public interface IThing<out TState> : IObservable<TState>, IThingInfo
+	{
+	}
+
+	public interface IThing<TIdentifier, out TState> : IThing<TState>, IThingInfo<TIdentifier>
+		where TIdentifier : notnull
+	{
+		object IThingInfo.Id => ((IThingInfo<TIdentifier>)this).Id;
+		IDeviceActuator IThingInfo.Actuator => ((IThingInfo<TIdentifier>)this).Actuator;
+	}
+
+	//public abstract record Dev<TIdentifier, TDeviceState>(TIdentifier Id, IDeviceActuator<TIdentifier> Actuator) : IDev<TDeviceState>, IDeviceInfo<TIdentifier>
+	//	where TIdentifier : notnull
+	//	where TDeviceState : notnull
+	//{
+	//	/// <inheritdoc />
+	//	object IDeviceInfo.Id => Id;
+
+	//	/// <inheritdoc />
+	//	IDeviceActuator IDeviceInfo.Actuator => Actuator;
+
+	//	/// <inheritdoc />
+	//	public abstract IDisposable Subscribe(IObserver<TDeviceState> observer);
+	//}
+
 	/// <summary>
 	/// Represents a lazy holder of a remote device which will maintain device's state internally for fast access.
 	/// </summary>
 	/// <typeparam name="TDevice">The type of the device</typeparam>
 	public class HomeDevice<TDevice> : IObservable<TDevice>, IDisposable, IDevice<TDevice>
+		where TDevice : notnull
 	{
 		// The throttle to wait for the initial device to load before being published
 		// It's frequent (eg. Home Assistant) to be dispatched on multiple MQTT topics, so with this delay we make sure
@@ -25,13 +55,13 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		//		 apply this delay only when this HomeDevice is used using the Awaiter.
 		private static readonly TimeSpan _initialThrottling = TimeSpan.FromMilliseconds(50);
 
-		protected readonly IConnectableObservable<TDevice> _source;
+		private readonly IConnectableObservable<TDevice> _source;
 
-		private readonly Subject<TDevice> _device = new Subject<TDevice>();
-		protected TDevice _lastPersisted;
-		protected bool _hasPersisted;
+		private readonly Subject<TDevice> _device = new();
+		private TDevice? _lastPersisted;
+		private bool _hasPersisted;
 
-		private readonly SingleAssignmentDisposable _subscription = new SingleAssignmentDisposable();
+		private readonly SingleAssignmentDisposable _subscription = new();
 
 		private int _isConnected;
 
@@ -58,7 +88,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 				.Multicast(_device);
 		}
 
-		protected HomeDevice(IDeviceHost host, object id, IObservable<TDevice> source, Func<TDevice, bool> isPersistent, IScheduler scheduler)
+		protected HomeDevice(IDeviceHost host, object id, IObservable<TDevice> source, Func<TDevice, bool> isPersistent, IScheduler? scheduler = null)
 		{
 			Host = host;
 			Id = id;
@@ -76,7 +106,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 					return state;
 				})
-				.Retry(TimeSpan.FromSeconds(10) /*Constants.DefaultRetryDelay*/, scheduler)
+				.Retry(TimeSpan.FromSeconds(10) /*Constants.DefaultRetryDelay*/, scheduler ?? Scheduler.Default)
 				.Multicast(_device);
 		}
 
@@ -100,7 +130,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 		{
 			if (_hasPersisted)
 			{
-				observer.OnNext(_lastPersisted);
+				observer.OnNext(_lastPersisted!);
 			}
 
 			var subscription = _source.Subscribe(observer);
@@ -150,7 +180,7 @@ namespace SmartHomeDotNet.SmartHome.Devices
 
 			public TDevice GetResult()
 				=> _owner._hasPersisted 
-					? _owner._lastPersisted
+					? _owner._lastPersisted!
 					: GetOrCreateAwaiter().GetResult();
 
 			public void OnCompleted(Action continuation)

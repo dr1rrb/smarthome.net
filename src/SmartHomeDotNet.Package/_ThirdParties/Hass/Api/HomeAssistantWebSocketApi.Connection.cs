@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -15,51 +17,52 @@ using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.Utils;
 using AsyncLock = SmartHomeDotNet.Utils.AsyncLock;
 
-namespace SmartHomeDotNet.Hass.Api
+namespace SmartHomeDotNet.Hass.Api;
+
+partial class HomeAssistantWebSocketApi
 {
-	partial class HomeAssistantWebSocketApi
+	private class Connection : IDisposable
 	{
-		private class Connection : IDisposable
+		private enum State
 		{
-			private enum State
+			New,
+			Authenticating,
+			Connected,
+			Disconnected,
+		}
+
+		private readonly SingleAssignmentDisposable _subscription = new();
+		private readonly BehaviorSubject<State> _state = new(State.New);
+		private readonly AsyncLock _sendGate = new();
+		private readonly CommandId.Provider _commandIdProvider = new();
+
+		private readonly HomeAssistantWebSocketApi _owner;
+		private ClientWebSocket _client;
+		private ImmutableDictionary<int, PendingCommand> _pendingCommands = ImmutableDictionary<int, PendingCommand>.Empty;
+
+		public Connection(HomeAssistantWebSocketApi owner)
+		{
+			_owner = owner;
+		}
+
+		public bool IsConnected => _state.Value is State.Connected && _client.State is WebSocketState.Open;
+
+		public void Enable(int activationDelayMs)
+			=> _subscription.Disposable = new NewThreadScheduler().ScheduleAsync(TimeSpan.FromMilliseconds(activationDelayMs), Connect);
+
+		private async Task Connect(IScheduler _, CancellationToken ct)
+		{
+			try
 			{
-				New,
-				Authenticating,
-				Connected,
-				Disconnected,
-			}
-
-			private readonly SingleAssignmentDisposable _subscription = new SingleAssignmentDisposable();
-			private readonly BehaviorSubject<State> _state = new BehaviorSubject<State>(State.New);
-			private readonly AsyncLock _sendGate = new AsyncLock();
-			private readonly CommandId.Provider _commandIdProvider = new CommandId.Provider();
-
-			private readonly HomeAssistantWebSocketApi _owner;
-			private ClientWebSocket _client;
-			private ImmutableDictionary<int, PendingCommand> _pendingCommands = ImmutableDictionary<int, PendingCommand>.Empty;
-
-			public Connection(HomeAssistantWebSocketApi owner)
-			{
-				_owner = owner;
-			}
-
-			public bool IsConnected => _state.Value == State.Connected;
-
-			public void Enable(int activationDelayMs)
-				=> _subscription.Disposable = new NewThreadScheduler().ScheduleAsync(TimeSpan.FromMilliseconds(activationDelayMs), Connect);
-
-			private async Task Connect(IScheduler _, CancellationToken ct)
-			{
-				try
+				using (_client = new ClientWebSocket())
 				{
-					using (_client = new ClientWebSocket())
 					using (_state.Select(Update).Switch().Subscribe(__ => { }, e => Dispose()))
 					{
 						await _client.ConnectAsync(_owner._endpoint, ct);
 
 						// We must be connected **before** ReceiveAsync
 
-						var buffer = WebSocket.CreateClientBuffer(8192, 4096);
+						var buffer = WebSocket.CreateClientBuffer(8 * 1024 * 1024, 128);
 						while (!ct.IsCancellationRequested && _client.State == WebSocketState.Open)
 						{
 							var message = await _client.ReceiveAsync(buffer, ct);
@@ -83,157 +86,165 @@ namespace SmartHomeDotNet.Hass.Api
 							}
 						}
 					}
-				}
-				catch (Exception e)
-				{
-					this.Log().Error("Connection failed", e);
-				}
-				finally
-				{
-					Dispose();
-				}
 
-				IObservable<Unit> Update(State state) => Observable.FromAsync(async ct2 =>
-				{
-					switch (state)
-					{
-						case State.Authenticating:
-							await _client.SendAsync(new ArraySegment<byte>(JsonSerializer.SerializeToUtf8Bytes(new AuthRequest(_owner._authToken), JsonWriteOpts)), WebSocketMessageType.Text, true, ct2);
-							break;
-
-						case State.Disconnected:
-							Dispose();
-							break;
-					}
-				});
-			}
-
-			#region Commands
-			public async Task<string> Execute<TCommand>(TCommand command, CancellationToken ct)
-				where TCommand : HomeAssistantCommand
-			{
-				using (var sender = await Send(command, ct))
-				{
-					return await sender.GetResult();
+					_state.OnNext(State.Disconnected); // To update the IsConnected flag
 				}
 			}
-
-			public async Task<PendingCommand> Send<TCommand>(TCommand command, CancellationToken ct)
-				where TCommand : HomeAssistantCommand
+			catch (WebSocketException error) when (error.WebSocketErrorCode is WebSocketError.ConnectionClosedPrematurely)
 			{
-				if (await _state.FirstOrDefaultAsync(state => state == State.Connected) != State.Connected)
-				{
-					throw new InvalidOperationException("Connection failed");
-				}
-
-				using (await _sendGate.LockAsync(ct))
-				using (var id = _commandIdProvider.GetNext())
-				{
-					var sender = new PendingCommand(command, this, id, ct);
-					var payload = JsonSerializer.SerializeToUtf8Bytes(command, JsonWriteOpts);
-
-					await _client.SendAsync(new ArraySegment<byte>(payload), WebSocketMessageType.Text, true, ct);
-
-					return sender;
-				}
+				_state.OnNext(State.Disconnected); // To update the IsConnected flag
+				this.Log().Info("Connection has been closed prematurely.");
+			}
+			catch (Exception e)
+			{
+				_state.OnNext(State.Disconnected); // To update the IsConnected flag
+				this.Log().Error("Connection failed", e);
+			}
+			finally
+			{
+				Dispose();
 			}
 
-			internal void RegisterPending(PendingCommand sender)
+			IObservable<Unit> Update(State state) => Observable.FromAsync(async ct2 =>
 			{
-				if (!ImmutableInterlocked.TryAdd(ref _pendingCommands, sender.Id, sender))
+				switch (state)
 				{
-					throw new InvalidOperationException($"Invalid command ID '{sender.Id}'. ID is already present.");
+					case State.Authenticating:
+						await _client.SendAsync(new ArraySegment<byte>(JsonSerializer.SerializeToUtf8Bytes(new AuthRequest(_owner._authToken), JsonWriteOpts)), WebSocketMessageType.Text, true, ct2);
+						break;
+
+					case State.Disconnected:
+						Dispose();
+						break;
+				}
+			});
+		}
+
+		#region Commands
+		public async Task<JsonElement> Execute<TCommand>(TCommand command, CancellationToken ct)
+			where TCommand : HomeAssistantCommand
+		{
+			using (var sender = await Send(command, ct))
+			{
+				return await sender.GetResult();
+			}
+		}
+
+		public async Task<PendingCommand> Send<TCommand>(TCommand command, CancellationToken ct)
+			where TCommand : HomeAssistantCommand
+		{
+			if (await _state.FirstOrDefaultAsync(state => state == State.Connected) != State.Connected)
+			{
+				throw new InvalidOperationException("Connection failed");
+			}
+
+			using (await _sendGate.LockAsync(ct))
+			using (var id = _commandIdProvider.GetNext())
+			{
+				var sender = new PendingCommand(command, this, id, ct);
+				var payload = JsonSerializer.SerializeToUtf8Bytes((object)command, JsonWriteOpts); // We must cast to object to not serialize only properties of HomeAssistantCommand
+
+				await _client.SendAsync(new ArraySegment<byte>(payload), WebSocketMessageType.Text, true, ct);
+
+				return sender;
+			}
+		}
+
+		internal void RegisterPending(PendingCommand sender)
+		{
+			if (!ImmutableInterlocked.TryAdd(ref _pendingCommands, sender.Id, sender))
+			{
+				throw new InvalidOperationException($"Invalid command ID '{sender.Id}'. ID is already present.");
+			}
+		}
+
+		internal void UnRegisterPending(PendingCommand sender)
+		{
+			ImmutableInterlocked.TryRemove(ref _pendingCommands, sender.Id, out _);
+		}
+		#endregion
+
+		#region Sink
+		private void OnMessageReceived(ArraySegment<byte> buffer)
+		{
+			var reader = new Utf8JsonReader(buffer, true, new JsonReaderState());
+			if (JsonDocument.TryParseValue(ref reader, out var doc)
+				&& doc.RootElement.TryGetProperty("type", out var genericMessage))
+			{
+				var type = genericMessage.GetString();
+				switch (type)
+				{
+					case "auth_ok":
+						_state.OnNext(State.Connected);
+						break;
+
+					case "auth_required":
+						_state.OnNext(State.Authenticating);
+						break;
+
+					case "auth_invalid":
+						_state.OnNext(State.Disconnected);
+						break;
+
+					case "result":
+						OnCommandResult(doc.RootElement);
+						break;
+
+					case "event":
+						OnEventReceived(doc.RootElement);
+						break;
+
+					default:
+						this.Log().Error($"Received unknown message type '{type}' or failed to process content.");
+						break;
 				}
 			}
-
-			internal void UnRegisterPending(PendingCommand sender)
+			else
 			{
-				ImmutableInterlocked.TryRemove(ref _pendingCommands, sender.Id, out _);
+				this.Log().Error($"Cannot get the type of the received message. ('{doc.RootElement}')");
 			}
-			#endregion
+		}
 
-			#region Sink
-			private void OnMessageReceived(ArraySegment<byte> buffer)
+		private void OnCommandResult(JsonElement msg)
+		{
+			if (msg.TryGetProperty("id", out var id)
+				&& _pendingCommands.TryGetValue(id.GetInt32(), out var command)
+				&& msg.TryGetProperty("success", out var isSuccess))
 			{
-				var reader = new Utf8JsonReader(buffer, true, new JsonReaderState());
-				if (JsonDocument.TryParseValue(ref reader, out var doc)
-					&& doc.RootElement.TryGetProperty("type", out var genericMessage))
+				if (isSuccess.GetBoolean())
 				{
-					var type = genericMessage.GetString();
-					switch (type)
-					{
-						case "auth_ok":
-							_state.OnNext(State.Connected);
-							break;
+					msg.TryGetProperty("result", out var result);
 
-						case "auth_required":
-							_state.OnNext(State.Authenticating);
-							break;
-
-						case "auth_invalid":
-							_state.OnNext(State.Disconnected);
-							break;
-
-						case "result":
-							OnCommandResult(doc.RootElement);
-							break;
-
-						case "event":
-							OnEventReceived(doc.RootElement);
-							break;
-
-						default:
-							this.Log().Error($"Received unknown message type '{type}' or failed to process content.");
-							break;
-					}
+					command.Completed(result);
 				}
 				else
 				{
-					this.Log().Error($"Cannot get the type of the received message. ('{doc.RootElement}')");
+					msg.TryGetProperty("error", out var error);
+
+					command.Failed(error);
 				}
 			}
+		}
 
-			private void OnCommandResult(JsonElement msg)
+		private void OnEventReceived(JsonElement msg)
+		{
+			if (msg.TryGetProperty("event", out var evt)
+				&& evt.TryGetProperty("event_type", out var type)
+				&& _owner._eventListeners.TryGetValue(type.GetString(), out var listener))
 			{
-				if (msg.TryGetProperty("id", out var id)
-					&& _pendingCommands.TryGetValue(id.GetInt32(), out var command)
-					&& msg.TryGetProperty("success", out var isSuccess))
-				{
-					if (isSuccess.GetBoolean())
-					{
-						msg.TryGetProperty("result", out var result);
-
-						command.Completed(result);
-					}
-					else
-					{
-						msg.TryGetProperty("error", out var error);
-
-						command.Failed(error);
-					}
-				}
+				listener.OnNext(evt);
 			}
+		}
+		#endregion
 
-			private void OnEventReceived(JsonElement msg)
-			{
-				if (msg.TryGetProperty("event", out var evt)
-					&& evt.TryGetProperty("event_type", out var type)
-					&& _owner._eventListeners.TryGetValue(type.GetString(), out var listener))
-				{
-					listener.OnNext(evt);
-				}
-			}
-			#endregion
+		/// <inheritdoc />
+		public void Dispose()
+		{
+			_subscription.Dispose();
+			_client?.Dispose();
 
-			/// <inheritdoc />
-			public void Dispose()
-			{
-				_subscription.Dispose();
-				_client?.Dispose();
-
-				_owner.ConnectionAborted(this);
-				_pendingCommands.Values.DisposeAllOrLog("Failed to abort a pending command.");
-			}
+			_owner.ConnectionAborted(this);
+			_pendingCommands.Values.DisposeAllOrLog("Failed to abort a pending command.");
 		}
 	}
 }

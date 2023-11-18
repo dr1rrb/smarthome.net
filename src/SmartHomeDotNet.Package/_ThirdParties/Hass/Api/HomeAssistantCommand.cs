@@ -2,11 +2,10 @@
 using System.Linq;
 using System.Text.Json.Serialization;
 
-namespace SmartHomeDotNet.Hass.Api
+namespace SmartHomeDotNet.Hass.Api;
+
+public abstract class HomeAssistantCommand
 {
-	public abstract class HomeAssistantCommand
-	{
-		[JsonConverter(typeof(CommandIdInjector))]
-		public int Id { get; } = -1;
-	}
+	[JsonConverter(typeof(CommandIdInjector))]
+	public int Id { get; } = -1;
 }
