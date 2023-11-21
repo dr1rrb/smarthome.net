@@ -11,7 +11,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.SmartHome.Devices_2;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices
@@ -20,11 +19,10 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	{
 	}
 
-	public interface IThing<TIdentifier, out TState> : IThing<TState>, IThingInfo<TIdentifier>
+	public interface IThing<out TIdentifier, out TState> : IThing<TState>, IThingInfo<TIdentifier>
 		where TIdentifier : notnull
 	{
 		object IThingInfo.Id => ((IThingInfo<TIdentifier>)this).Id;
-		IDeviceActuator IThingInfo.Actuator => ((IThingInfo<TIdentifier>)this).Actuator;
 	}
 
 	//public abstract record Dev<TIdentifier, TDeviceState>(TIdentifier Id, IDeviceActuator<TIdentifier> Actuator) : IDev<TDeviceState>, IDeviceInfo<TIdentifier>

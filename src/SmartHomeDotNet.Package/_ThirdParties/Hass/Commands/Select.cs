@@ -3,22 +3,21 @@ using System.Collections.Generic;
 using System.Text;
 using SmartHomeDotNet.SmartHome.Commands;
 
-namespace SmartHomeDotNet.Hass.Commands
+namespace SmartHomeDotNet.Hass.Commands;
+
+internal interface ISelectCommand : ICommand
 {
-	internal interface ISelectCommand : ICommand
+	object Value { get; }
+}
+
+public readonly struct Select<T> : ISelectCommand, ICommand
+{
+	public Select(T value)
 	{
-		object Value { get; }
+		Value = value;
 	}
 
-	public struct Select<T> : ISelectCommand, ICommand
-	{
-		public Select(T value)
-		{
-			Value = value;
-		}
+	public T Value { get; }
 
-		public T Value { get; }
-
-		object ISelectCommand.Value => Value;
-	}
+	object ISelectCommand.Value => Value;
 }

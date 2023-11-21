@@ -5,15 +5,16 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Mavri.Ha.Entities;
 using HomeGenerator.Cli.Utils;
+using Mavri.Ha.Config;
+using Mavri.Ha.Data;
+using Mavri.Ha.Utils;
 using Newtonsoft.Json.Linq;
 using SmartHomeDotNet.Hass;
 using SmartHomeDotNet.Hass.Api;
-using SmartHomeDotNet.SmartHome.Commands;
-using SmartHomeDotNet.SmartHome.Devices_2;
-using SmartHomeDotNet.Utils;
 
-namespace HomeGenerator.Cli.Generation;
+namespace Mavri.Ha.Generation;
 
 public class Generator : ICodeGenTool
 {
@@ -25,9 +26,9 @@ public class Generator : ICodeGenTool
 	static Generator()
 	{
 		JsonReadOpts = HomeAssistantWebSocketApi.CreateDefaultJsonReadOptions();
-		JsonReadOpts.Converters.Add(SourceJson<EntityInfo>.Instance);
-		JsonReadOpts.Converters.Add(SourceJson<DeviceInfo>.Instance);
-		JsonReadOpts.Converters.Add(SourceJson<AreaInfo>.Instance);
+		JsonReadOpts.Converters.Add(SourceJson<EntityData>.Instance);
+		JsonReadOpts.Converters.Add(SourceJson<DeviceData>.Instance);
+		JsonReadOpts.Converters.Add(SourceJson<AreaData>.Instance);
 		JsonReadOpts.Converters.Add(SourceJson<EntityState>.Instance);
 	}
 
@@ -66,7 +67,7 @@ public class Generator : ICodeGenTool
 
 		//var areas = await client.Send<ImmutableArray<AreaInfo>>(new GenericCommand("config/area_registry/list"), ct);
 
-		var config = await client.Send<Config>(new GetConfigCommand(), ct);
+		var config = await client.Send<ConfigData>(new GetConfigCommand(), ct);
 		var (entities, enums) = await GetEntities(client, ct);
 		var devices = await GetDevices(client, entities, ct);
 		var areas = await GetAreas(client, devices, ct);
@@ -100,56 +101,27 @@ public class Generator : ICodeGenTool
 		return "";
 	}
 
-	public static class NS
-	{
-		// Where we have the entities (ButtonEntity, LightEntity)
-		public const string Entities = "global::HomeGenerator.Cli";
-	}
-
-	public static class T
-	{
-		public static readonly string HA = "global::" + typeof(IHomeAssistantHub).FullName;
-		public static readonly string Actuator = "global::" + typeof(IDeviceActuator).FullName;
-		public static readonly string AsyncOp = "global::" + typeof(AsyncContextOperation).FullName;
-		public static readonly string ICommand = "global::" + typeof(ICommand).FullName;
-
-		public static readonly string EntityId = "global::" + typeof(EntityId).FullName;
-		public static readonly string IEntity = "global::" + typeof(IEntity).FullName;
-		public static readonly string IEntityRegistry = "global::" + typeof(IEntityRegistry).FullName;
-		public static readonly string Entity = "global::HomeGenerator.Cli.Entity";
-
-		public static readonly string DeviceId = "global::" + typeof(DeviceId).FullName;
-		public static readonly string IDevice = "global::" + typeof(IDevice).FullName;
-		public static readonly string IDeviceRegistry = "global::" + typeof(IDeviceRegistry).FullName;
-		public static readonly string Device = "global::HomeGenerator.Cli.Device";
-
-
-		public static readonly string EntitiesManager = "global::" + typeof(EntitiesManager).FullName;
-		public static readonly string SocketApi = "global::" + typeof(HomeAssistantWebSocketApi).FullName;
-		public static readonly string RestApi = "global::" + typeof(HomeAssistantHttpApi).FullName;
-	}
-
 	/// <param name="Type">Type of the enum</param>
 	/// <param name="Values">Escaped values of the enum</param>
 	private record EntityEnumGen(string Type, ImmutableArray<string> Values);
 
-	/// <param name="Info"></param>
+	/// <param name="Data"></param>
 	/// <param name="State">A state example captured at generation for debug purposes</param>
 	/// <param name="Type">The type of the entity (e.g. LightEntity)</param>
 	/// <param name="Property">The name of the entity in the registry. Note: We expect to **NOT** have the same name for entities while in a device.</param>
-	private record EntityGen(EntityInfo Info, EntityState? State, string Type, string Property)
+	private record EntityGen(EntityData Data, EntityState? State, string Type, string Property)
 	{
-		public EntityId Id => Info.Id;
+		public EntityId Id => Data.Id;
 
 		/// <summary>
 		/// The type (and name) of the component registry that holds the entity.
 		/// </summary>
-		public string Component { get; } = GetComponentName(Info.Id.Component);
+		public string Component { get; } = GetComponentName(Data.Id.Component);
 
 		public static string GetComponentName(Component component)
 			=> ToCSharpCamel(component.Name);
 
-		public string Summary => $"{Info.Name ?? Info.OriginalName} ({Id})";
+		public string Summary => $"{Data.Name ?? Data.OriginalName} ({Id})";
 
 		//public static string GetDeviceProperty(EntityInfo entity)
 		//	=> ToCsharpName("Entity", entity switch
@@ -166,28 +138,28 @@ public class Generator : ICodeGenTool
 		//	=> this with { Property = GetEntityPropertyNameLight(Info) };
 	}
 
-	private record DeviceGen(DeviceInfo Info, ImmutableArray<EntityGen> Entities)
+	private record DeviceGen(DeviceData Data, ImmutableArray<EntityGen> Entities)
 	{
 		/// <summary>
 		/// The type of the device (e.g. ChristmasString001)
 		/// </summary>
-		public string Type { get; init; } = GetTypeName(Info);
+		public string Type { get; init; } = GetTypeName(Data);
 
 		/// <summary>
 		/// The name of the device in the registry
 		/// </summary>
-		public string Property { get; init; } = GetPropertyName(Info);
+		public string Property { get; init; } = GetPropertyName(Data);
 
-		public string Summary => $"{Info.FriendlyName ?? Info.Name} ({Info.Model} by {Info.Manufacturer})";
+		public string Summary => $"{Data.FriendlyName ?? Data.Name} ({Data.Model} by {Data.Manufacturer})";
 
-		static string GetTypeName(DeviceInfo device)
+		static string GetTypeName(DeviceData device)
 			=> ToCsharpName("Device", device switch
 			{
 				{ Name: { Length: > 0 } name } => name,
 				_ => device.Id.ToString()
 			});
 
-		static string GetPropertyName(DeviceInfo device)
+		static string GetPropertyName(DeviceData device)
 			=> ToCsharpName("_", device switch
 			{
 				{ FriendlyName: { Length: > 0 } name } => name,
@@ -201,33 +173,33 @@ public class Generator : ICodeGenTool
 
 			yield return Type;
 
-			yield return GetTypeName(Info); // The default type name might have been overridden
+			yield return GetTypeName(Data); // The default type name might have been overridden
 
-			if (Info is { FriendlyName: { Length: > 0 } friendlyName })
+			if (Data is { FriendlyName: { Length: > 0 } friendlyName })
 			{
 				yield return friendlyName;
 			}
 
-			if (Info is { Name: { Length: > 0 } name })
+			if (Data is { Name: { Length: > 0 } name })
 			{
 				yield return name;
 			}
 
-			yield return Info.Id;
+			yield return Data.Id;
 		}
 	}
 
-	private record AreaGen(AreaInfo Info, ImmutableArray<DeviceGen> Devices)
+	private record AreaGen(AreaData Data, ImmutableArray<DeviceGen> Devices)
 	{
-		public string Name => ToCSharpCamel(Info.Name ?? Info.Id);
+		public string Name => ToCSharpCamel(Data.Name ?? Data.Id);
 
-		public string Summary => $"{Info.Name} ({Info.Id})";
+		public string Summary => $"{Data.Name} ({Data.Id})";
 
 		public IEnumerable<string> Tokens()
 		{
 			yield return Name;
 
-			yield return Info.Id;
+			yield return Data.Id;
 		}
 	}
 
@@ -303,7 +275,7 @@ public class Generator : ICodeGenTool
 							/// </summary>
 							/// <remarks>
 							/// Source JSON:
-							/// {{SourceJson.ToString(entity.Info)?.Align(0, "///")}}
+							/// {{SourceJson.ToString(entity.Data)?.Align(0, "///")}}
 							/// </remarks>
 							{{(entity.State is { } state && SourceJson.ToString(state) is { } stateJson
 								? $$"""
@@ -343,7 +315,7 @@ public class Generator : ICodeGenTool
 					public {{T.IDevice}}? Get({{T.DeviceId}} id)
 						=> ((string)id) switch
 						{
-							{{devices.Select(dev => $"\"{dev.Info.Id}\" => {dev.Property},").Align(3)}}
+							{{devices.Select(dev => $"\"{dev.Data.Id}\" => {dev.Property},").Align(3)}}
 							_ => default
 						};
 
@@ -359,7 +331,7 @@ public class Generator : ICodeGenTool
 		foreach (var dev in devices)
 		{
 			var entities = dev.Entities
-				.Select(entity => (entity, name: GetDeviceProperty(entity.Info)))
+				.Select(entity => (entity, name: GetDeviceProperty(entity.Data)))
 				.ToImmutableArray()
 				.DeDuplicate(entity => entity.name, StringComparer.Ordinal, (e, i) => (e.entity, $"{e.name}_{i}"));
 
@@ -374,7 +346,7 @@ public class Generator : ICodeGenTool
 				/// </summary>
 				/// <remarks>
 				/// Source JSON:
-				/// {{SourceJson.ToString(dev.Info)?.Align(0, "///")}}
+				/// {{SourceJson.ToString(dev.Data)?.Align(0, "///")}}
 				/// </remarks>
 				{{this.GetCodeGenAttribute()}}
 				public sealed partial record {{dev.Type}} : {{T.Device}}
@@ -382,9 +354,9 @@ public class Generator : ICodeGenTool
 					private readonly EntityRegistry _entities;
 
 					/// <summary>
-					/// Creates an instance of device {{dev.Info.Id}}.
+					/// Creates an instance of device {{dev.Data.Id}}.
 					/// </summary>
-					public {{dev.Type}}(EntityRegistry entities) : base("{{dev.Info.Id}}", entities.Hub)
+					public {{dev.Type}}(EntityRegistry entities) : base("{{dev.Data.Id}}", entities.Hub)
 					{
 						_entities = entities;
 					}
@@ -398,7 +370,7 @@ public class Generator : ICodeGenTool
 				}
 				""");
 
-			string GetDeviceProperty(EntityInfo entity)
+			string GetDeviceProperty(EntityData entity)
 			{
 				var name = entity switch
 				{
@@ -512,7 +484,7 @@ public class Generator : ICodeGenTool
 					/// </summary>
 					/// <remarks>
 					/// Source JSON:
-					/// {{SourceJson.ToString(area.Info)?.Align(0, "///")}}
+					/// {{SourceJson.ToString(area.Data)?.Align(0, "///")}}
 					/// </remarks>
 					public partial record {{area.Name}}
 					{
@@ -553,7 +525,7 @@ public class Generator : ICodeGenTool
 
 	private async Task<(ImmutableArray<EntityGen> entities, ImmutableArray<EntityEnumGen> enums)> GetEntities(HomeAssistantWebSocketApi client, CancellationToken ct)
 	{
-		var entities = await client.Send<ImmutableArray<EntityInfo>>(new GenericCommand("config/entity_registry/list"), JsonReadOpts, ct);
+		var entities = await client.Send<ImmutableArray<EntityData>>(new GenericCommand("config/entity_registry/list"), JsonReadOpts, ct);
 		var states = await client.Send<ImmutableArray<EntityState>>(new GetStatesCommand(), JsonReadOpts, ct);
 
 		var currentStates = states.ToDictionary(state => state.EntityId);
@@ -594,10 +566,10 @@ public class Generator : ICodeGenTool
 
 		return (entitiesToGen, enums.ToImmutableArray());
 
-		static string GetEntityPropertyNameLight(EntityInfo entity)
+		static string GetEntityPropertyNameLight(EntityData entity)
 			=> ToCsharpName("Entity", entity.Id.Id);
 
-		string GetEntityType(EntityInfo entityInfo, EntityState? currentState)
+		string GetEntityType(EntityData entityInfo, EntityState? currentState)
 		{
 			// TODO: Use reflection / roslyn to find attributes
 			if (manualConfigs.TryGetValue(entityInfo.Id, out var manualConfig))
@@ -619,7 +591,7 @@ public class Generator : ICodeGenTool
 			}
 		}
 
-		string? GetEntityTypeFromCurrentState(EntityInfo info, EntityState currentState)
+		string? GetEntityTypeFromCurrentState(EntityData info, EntityState currentState)
 			=> info.Id.Component.Name switch
 			{
 				"sensor" when (currentState?.Attributes.TryGet<string>("unit_of_measurement", out var unit) ?? false) && unit is { Length: > 0 } => $"{NS.Entities}.{nameof(DoubleEntity)}",
@@ -628,16 +600,16 @@ public class Generator : ICodeGenTool
 				{
 					"enum" => $"{NS.Entities}.EnumEntity<{CreateEnum(info, currentState, "options")}>",
 					"timestamp" => $"{NS.Entities}.{nameof(TimestampEntity)}",
-					_ => $"{NS.Entities}.{nameof(SensorEntity)}",
+					_ => $"{NS.Entities}.{nameof(StringEntity)}",
 				},
-				"sensor" => $"{NS.Entities}.{nameof(SensorEntity)}",
+				"sensor" => $"{NS.Entities}.{nameof(StringEntity)}",
 				"event" => $"{NS.Entities}.EventEntity<{CreateEnum(info, currentState, "event_types")}>",
 				"select" => $"{NS.Entities}.SelectEntity<{CreateEnum(info, currentState, "options")}>",
 				"input_select" => $"{NS.Entities}.InputSelectEntity<{CreateEnum(info, currentState, "options")}>",
 				_ => null,
 			};
 
-		static string? GetEntityTypeForComponent(EntityInfo info)
+		static string? GetEntityTypeForComponent(EntityData info)
 			=> info.Id.Component.Name switch
 			{
 				"button" => $"{NS.Entities}.{nameof(ButtonEntity)}",
@@ -672,7 +644,7 @@ public class Generator : ICodeGenTool
 				_ => null,
 			};
 
-		string CreateEnum(EntityInfo info, EntityState currentState, string valuesKey)
+		string CreateEnum(EntityData info, EntityState currentState, string valuesKey)
 		{
 			var type = GetEntityPropertyNameLight(info) + ToCSharpCamel(valuesKey);
 			var values = currentState.Attributes.GetArray<string>(valuesKey, info.Id).Select(value => ToCsharpName("_", value)).ToImmutableArray();
@@ -685,10 +657,10 @@ public class Generator : ICodeGenTool
 
 	private static async Task<ImmutableArray<DeviceGen>> GetDevices(HomeAssistantWebSocketApi client, ImmutableArray<EntityGen> entities, CancellationToken ct)
 	{
-		var devices = await client.Send<ImmutableArray<DeviceInfo>>(new GenericCommand("config/device_registry/list"), JsonReadOpts, ct);
+		var devices = await client.Send<ImmutableArray<DeviceData>>(new GenericCommand("config/device_registry/list"), JsonReadOpts, ct);
 		var devicesToGen = entities
-			.Where(entity => entity.Info.DeviceId is { Length: > 0 })
-			.GroupBy(entity => entity.Info.DeviceId!)
+			.Where(entity => entity.Data.DeviceId is { Length: > 0 })
+			.GroupBy(entity => entity.Data.DeviceId!)
 			.Join(devices, g => g.Key, d => d.Id, (devEntities, device) => new DeviceGen(device, devEntities.ToImmutableArray()))
 			.ToImmutableArray()
 			.DeDuplicate(
@@ -696,8 +668,8 @@ public class Generator : ICodeGenTool
 				StringComparer.OrdinalIgnoreCase,
 				dev => dev with
 				{
-					Type = dev.Type + '_' + dev.Info.Id,
-					Property = dev.Property + '_' + dev.Info.Id,
+					Type = dev.Type + '_' + dev.Data.Id,
+					Property = dev.Property + '_' + dev.Data.Id,
 				});
 
 		// De-duplicate device types
@@ -719,9 +691,9 @@ public class Generator : ICodeGenTool
 
 	private static async Task<ImmutableArray<AreaGen>> GetAreas(HomeAssistantWebSocketApi client, ImmutableArray<DeviceGen> devices, CancellationToken ct)
 	{
-		var areas = await client.Send<ImmutableArray<AreaInfo>>(new GenericCommand("config/area_registry/list"), JsonReadOpts, ct);
+		var areas = await client.Send<ImmutableArray<AreaData>>(new GenericCommand("config/area_registry/list"), JsonReadOpts, ct);
 		var areasToGen = areas
-			.Select(area => new AreaGen(area, devices.Where(dev => dev.Info.AreaId == area.Id).ToImmutableArray()))
+			.Select(area => new AreaGen(area, devices.Where(dev => dev.Data.AreaId == area.Id).ToImmutableArray()))
 			.ToImmutableArray();
 
 		return areasToGen;
@@ -782,25 +754,4 @@ public class Generator : ICodeGenTool
 		bool IsDigit(int i)
 			=> i < name.Length && char.IsDigit(name[i]);
 	}
-}
-
-internal interface ICodeGenTool
-{
-	string Version { get; }
-}
-
-internal static class CodeGenToolExtensions
-{
-	public static string GetCodeGenAttribute(this ICodeGenTool tool)
-		=> $@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""{tool.GetType().Name}"", ""{tool.Version}"")]";
-
-	public static string GetFileHeader(this ICodeGenTool tool, int aligned = 0)
-		=> $@"//----------------------
-		// <auto-generated>
-		//	Generated by the {tool.GetType().Name} v{tool.Version}. DO NOT EDIT!
-		//	Manual changes to this file will be overwritten if the code is regenerated.
-		// </auto-generated>
-		//----------------------
-		#pragma warning disable
-		#nullable enable".Align(Math.Max(aligned - 1, 0));
 }

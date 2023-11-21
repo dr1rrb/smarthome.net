@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using SmartHomeDotNet.SmartHome.Commands;
 
 namespace SmartHomeDotNet.Hass.Commands;
 
-public struct Lock : ICommand
+public struct Unlock : ICommand
 {
-	public Lock(string? code = null)
+	public Unlock(string? code = null)
 	{
 		Code = code;
 	}

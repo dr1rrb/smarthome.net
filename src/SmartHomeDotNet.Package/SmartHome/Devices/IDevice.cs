@@ -24,15 +24,15 @@ namespace SmartHomeDotNet.SmartHome.Devices
 	{
 		object Id { get; }
 
-		IDeviceActuator Actuator { get; }
+		//IDeviceActuator Actuator { get; }
 	}
 
-	public interface IThingInfo<TIdentifier>
+	public interface IThingInfo<out TIdentifier>
 	{
 		// Note: why not just a Execute on this instead of pushing the actuator: so we are able to properly coerce request on multiple devices!
 
 		TIdentifier Id { get; }
 
-		IDeviceActuator<TIdentifier> Actuator { get; }
+		//IDeviceActuator<TIdentifier> Actuator { get; }
 	}
 }
