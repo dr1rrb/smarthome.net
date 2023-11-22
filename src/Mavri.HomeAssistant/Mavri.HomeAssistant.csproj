@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net7.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<!--<GenerateDocumentationFile>True</GenerateDocumentationFile>-->
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+		<NoWarn>1701;1702,CS1998</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Mavri\Mavri.csproj" />
+	</ItemGroup>
+
+</Project>

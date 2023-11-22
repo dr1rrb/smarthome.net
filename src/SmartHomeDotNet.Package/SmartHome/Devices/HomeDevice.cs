@@ -15,15 +15,7 @@ using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices
 {
-	public interface IThing<out TState> : IObservable<TState>, IThingInfo
-	{
-	}
-
-	public interface IThing<out TIdentifier, out TState> : IThing<TState>, IThingInfo<TIdentifier>
-		where TIdentifier : notnull
-	{
-		object IThingInfo.Id => ((IThingInfo<TIdentifier>)this).Id;
-	}
+	
 
 	//public abstract record Dev<TIdentifier, TDeviceState>(TIdentifier Id, IDeviceActuator<TIdentifier> Actuator) : IDev<TDeviceState>, IDeviceInfo<TIdentifier>
 	//	where TIdentifier : notnull

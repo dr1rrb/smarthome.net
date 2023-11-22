@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using SmartHomeDotNet.SmartHome.Devices;
-using SmartHomeDotNet.SmartHome.Devices_2;
 
 namespace SmartHomeDotNet.SmartHome.Commands;
 
@@ -12,9 +11,4 @@ namespace SmartHomeDotNet.SmartHome.Commands;
 public interface ISupport<T>
 	where T : ICommand
 {
-}
-
-public interface IActuatable
-{
-	IDeviceActuator Actuator { get; }
 }

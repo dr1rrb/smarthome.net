@@ -7,7 +7,8 @@ using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.Hass.Api;
+using Mavri.Ha.Api;
+using Mavri.Utils;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.SmartHome.Devices

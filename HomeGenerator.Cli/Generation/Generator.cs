@@ -7,12 +7,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mavri.Ha.Entities;
 using HomeGenerator.Cli.Utils;
+using Mavri.Ha.Api;
 using Mavri.Ha.Config;
 using Mavri.Ha.Data;
 using Mavri.Ha.Utils;
 using Newtonsoft.Json.Linq;
 using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.Hass.Api;
+using static Mavri.HomeAssistant.Utils.NamingStrategy;
 
 namespace Mavri.Ha.Generation;
 
@@ -93,7 +94,7 @@ public class Generator : ICodeGenTool
 			await File.WriteAllTextAsync($"..\\..\\..\\G\\devs\\{dev.name}.g.cs", dev.code, ct);
 		}
 
-		foreach (var area in GenerateAreas(ns, config.Name, areas))
+		foreach (var area in GenerateAreas(ns, config!.Name, areas))
 		{
 			await File.WriteAllTextAsync($"..\\..\\..\\G\\areas\\{area.name}.g.cs", area.code, ct);
 		}
@@ -697,61 +698,5 @@ public class Generator : ICodeGenTool
 			.ToImmutableArray();
 
 		return areasToGen;
-	}
-
-	public static string ToCsharpName(string prefix, string name)
-	{
-		name = ToCSharpCamel(name);
-		return name is null or { Length: 0 } || char.IsNumber(name[0]) ? prefix + name : name;
-	}
-
-	public static string ToCSharpCamel(string name, bool canIgnoreSomeChars = true)
-	{
-		if (name.Length == 0)
-		{
-			return name;
-		}
-
-		var result = new StringBuilder((int)(name.Length * 1.2));
-		var nextIsUpper = true;
-		var lastWasDigit = false;
-
-		for (var i = 0; i < name.Length; i++)
-		{
-			var c = name[i];
-			if (canIgnoreSomeChars && !(lastWasDigit && IsDigit(i + 1)) && c is '_' or ' ' or '-' or '\'')
-			{
-				nextIsUpper = true;
-			}
-			else if (c is '&')
-			{
-				nextIsUpper = true;
-				lastWasDigit = false;
-				result.Append("And");
-			}
-			else if (!char.IsLetterOrDigit(c))
-			{
-				nextIsUpper = true;
-				lastWasDigit = false;
-				result.Append('_');
-			}
-			else if (nextIsUpper)
-			{
-				nextIsUpper = false;
-				lastWasDigit = char.IsDigit(c);
-				result.Append(char.ToUpperInvariant(c));
-			}
-			else
-			{
-				// nextIsUpper = false; // Already false, no needs to update it
-				lastWasDigit = char.IsDigit(c);
-				result.Append(c);
-			}
-		}
-
-		return result.ToString();
-
-		bool IsDigit(int i)
-			=> i < name.Length && char.IsDigit(name[i]);
 	}
 }

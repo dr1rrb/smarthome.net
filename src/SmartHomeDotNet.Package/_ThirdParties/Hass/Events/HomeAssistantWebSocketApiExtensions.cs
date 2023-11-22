@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
-using SmartHomeDotNet.Hass.Api;
+using Mavri.Ha.Api;
 using SmartHomeDotNet.Hass.Events;
 
 namespace SmartHomeDotNet.Hass;

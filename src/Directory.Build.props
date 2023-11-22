@@ -1,7 +1,5 @@
 <Project ToolsVersion="15.0">
 
-	<Import Project="$(SolutionDir)\build_overrides.props" Condition="exists('$(SolutionDir)\build_overrides.props')" />
-
 	<PropertyGroup>
 		<Version>0.2.0</Version>
 		<Authors>Dr1rrb</Authors>

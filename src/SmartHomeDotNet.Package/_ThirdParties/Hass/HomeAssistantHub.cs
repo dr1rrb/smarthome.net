@@ -8,8 +8,7 @@ using System.Reactive.Concurrency;
 using System.Security.Authentication.ExtendedProtection;
 using System.Threading;
 using System.Threading.Tasks;
-using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.Hass.Api;
+using Mavri.Ha.Api;
 using SmartHomeDotNet.Mqtt;
 using SmartHomeDotNet.SmartHome.Automations;
 using SmartHomeDotNet.SmartHome.Commands;
@@ -107,13 +106,13 @@ namespace SmartHomeDotNet.Hass
 		/// <returns></returns>
 		public AsyncContextOperation Send(CallServiceCommand command) => Send(command as HomeAssistantCommand);
 
-		internal AsyncContextOperation Send(HomeAssistantCommand command)
+		internal AsyncContextOperation Send(HomeAssistantCommand command, TimeSpan? transition = null)
 		{
 			if (command is CallServiceCommand callService)
 			{
 				if (SocketApi.IsConnected(out var connection))
 				{
-					return callService.Transition.HasValue
+					return transition.HasValue
 						? AsyncContextOperation.StartNew(Send, Extent)
 						: AsyncContextOperation.StartNew(Send);
 
@@ -127,12 +126,14 @@ namespace SmartHomeDotNet.Hass
 
 					async Task Extent(CancellationToken ct)
 					{
-						await Task.Delay(callService.Transition.Value);
+						await Task.Delay(transition.Value);
 					}
 				}
 				else
 				{
-					return Api.CallService(callService.Domain, callService.Service, callService.Data, callService.Transition);
+					return AsyncContextOperation.StartNew(
+						ct => Api.CallService(callService.Domain, callService.Service, callService.Data, ct), 
+						ct => transition is not null ? Task.Delay(transition.Value, ct) : Task.CompletedTask);
 				}
 			}
 			else

@@ -5,7 +5,8 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
 using System.Text;
-using SmartHomeDotNet.Hass.Api;
+using System.Threading.Tasks;
+using Mavri.Ha.Api;
 using SmartHomeDotNet.Hass.Commands;
 using SmartHomeDotNet.Mqtt;
 using SmartHomeDotNet.SmartHome.Commands;
@@ -71,7 +72,11 @@ namespace SmartHomeDotNet.Hass
 			{
 				if (adapter.TryGetData(component, command, out var data))
 				{
-					return _api.CallService(data.Domain, data.Service, data.Data.Add(devices), data.Transition);
+					return AsyncContextOperation.StartNew(async ct =>
+					{
+						await _api.CallService(data.Domain, data.Service, data.Data.Add(devices), ct);
+						if (data.Transition is not null) await Task.Delay(data.Transition.Value, ct);
+					});
 				}
 			}
 
@@ -81,17 +86,29 @@ namespace SmartHomeDotNet.Hass
 			switch (command)
 			{
 				case TurnOn on:
-					return _api.CallService(domain, "turn_on", on.ToParameters(domain, devices, out var tOn), tOn);
+					return AsyncContextOperation.StartNew(async ct =>
+					{
+						await _api.CallService(domain, "turn_on", on.ToParameters(domain, devices, out var tOn), ct);
+						if (tOn is not null) await Task.Delay(tOn.Value, ct);
+					});
 				case TurnOff off:
-					return _api.CallService(domain, "turn_off", off.ToParameters(domain, devices, out var tOff), tOff);
+					return AsyncContextOperation.StartNew(async ct =>
+					{
+						await _api.CallService(domain, "turn_off", off.ToParameters(domain, devices, out var tOff), ct);
+						if (tOff is not null) await Task.Delay(tOff.Value, ct);
+					});
 				case Toggle toggle:
-					return _api.CallService(domain, "toggle", toggle.ToParameters(domain, devices, out var tTog), tTog);
+					return AsyncContextOperation.StartNew(async ct =>
+					{
+						await _api.CallService(domain, "toggle", toggle.ToParameters(domain, devices, out var tTog), ct);
+						if (tTog is not null) await Task.Delay(tTog.Value, ct);
+					});
 				case ISelectCommand select:
-					return _api.CallService(domain, "select_option", select.ToParameters(domain, devices));
+					return AsyncContextOperation.StartNew(ct => _api.CallService(domain, "select_option", select.ToParameters(domain, devices), ct));
 				case SetSpeed setSpeed:
-					return _api.CallService(domain, "set_speed", setSpeed.ToParameters(domain, devices));
+					return AsyncContextOperation.StartNew(ct => _api.CallService(domain, "set_speed", setSpeed.ToParameters(domain, devices), ct));
 				case SetText setText:
-					return _api.CallService(domain, "set_value", setText.ToParameters(domain, devices));
+					return AsyncContextOperation.StartNew(ct => _api.CallService(domain, "set_value", setText.ToParameters(domain, devices), ct));
 
 				default:
 					throw new NotSupportedException($"Command {command.GetType()} is not supported.");

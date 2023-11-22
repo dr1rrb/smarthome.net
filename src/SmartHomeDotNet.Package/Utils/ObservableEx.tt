@@ -11,6 +11,7 @@ using System.Text;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
+using Mavri.Utils;
 
 namespace SmartHomeDotNet.Utils
 {

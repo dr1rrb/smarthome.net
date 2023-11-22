@@ -101,7 +101,7 @@ namespace SmartHomeDotNet.Utils
 					return source.SelectMany(d => Observable.FromAsync(ct => action(ct, d), scheduler));
 
 				case ConcurrentExecutionMode.Queue:
-					var @lock = new Utils.AsyncLock();
+					var @lock = new Mavri.Utils.AsyncLock();
 					return source
 						.SelectMany(d => Observable.FromAsync(
 							async ct =>

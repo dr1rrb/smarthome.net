@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
 
-  <PropertyGroup>
-		<TargetFramework>netcoreapp3.1</TargetFramework>
+	<PropertyGroup>
+		<TargetFramework>net7.0-windows</TargetFramework>
 		<UseWPF>true</UseWPF>
-  </PropertyGroup>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\src\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\src\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj" />
+	</ItemGroup>
 
 </Project>

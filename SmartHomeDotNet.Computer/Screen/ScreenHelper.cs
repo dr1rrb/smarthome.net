@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Mavri.Utils;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.Utils;
 

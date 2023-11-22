@@ -10,12 +10,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\src\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="G\" />
-	  <Folder Include="G\entities\" />
+		<ProjectReference Include="..\src\SmartHomeDotNet.Package\SmartHomeDotNet.Package.csproj" />
 	</ItemGroup>
 
 </Project>

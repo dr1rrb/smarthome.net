@@ -21,7 +21,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Computer.Lo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmartHomeDotNet.Computer.Audio", "..\SmartHomeDotNet.Computer.Audio\SmartHomeDotNet.Computer.Audio.csproj", "{5A45F7EE-7001-40E6-ADE2-4CE46B0647D9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeGenerator.Cli", "..\HomeGenerator.Cli\HomeGenerator.Cli.csproj", "{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HomeGenerator.Cli", "..\HomeGenerator.Cli\HomeGenerator.Cli.csproj", "{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mavri.HomeAssistant", "Mavri.HomeAssistant\Mavri.HomeAssistant.csproj", "{FEF19047-707E-4F5A-840D-D71AD399D228}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mavri", "Mavri\Mavri.csproj", "{87897BEE-1A0C-4DBA-BC5E-2EDAF8E3A6D7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,6 +73,14 @@ Global
 		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0BF07BB8-6AF0-4034-AE4F-AD82F48E78B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FEF19047-707E-4F5A-840D-D71AD399D228}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FEF19047-707E-4F5A-840D-D71AD399D228}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FEF19047-707E-4F5A-840D-D71AD399D228}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FEF19047-707E-4F5A-840D-D71AD399D228}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87897BEE-1A0C-4DBA-BC5E-2EDAF8E3A6D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87897BEE-1A0C-4DBA-BC5E-2EDAF8E3A6D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87897BEE-1A0C-4DBA-BC5E-2EDAF8E3A6D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87897BEE-1A0C-4DBA-BC5E-2EDAF8E3A6D7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

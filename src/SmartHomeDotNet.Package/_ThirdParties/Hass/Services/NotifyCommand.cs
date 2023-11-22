@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.Hass.Api;
-using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet._ThirdParties.Hass.Services
 {

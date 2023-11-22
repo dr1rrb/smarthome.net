@@ -2,6 +2,7 @@
 using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
 using System.Linq;
+using Mavri.Utils;
 using SmartHomeDotNet.Utils;
 
 namespace SmartHomeDotNet.Gpio

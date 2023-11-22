@@ -14,10 +14,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
+using Mavri.Utils;
 using SmartHomeDotNet.Logging;
 using SmartHomeDotNet.SmartHome.Devices;
 using SmartHomeDotNet.Utils;
-using AsyncLock = SmartHomeDotNet.Utils.AsyncLock;
+using AsyncLock = Mavri.Utils.AsyncLock;
 
 namespace SmartHomeDotNet.Mqtt
 {

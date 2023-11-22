@@ -134,7 +134,7 @@ namespace SmartHomeDotNet.Computer
 				}
 				catch (Exception e)
 				{
-					this.Log().Error("Failed to abort WPF application dispatcher.");
+					this.Log().Error("Failed to abort WPF application dispatcher.", e);
 				}
 
 				_handle.TrySetCanceled();

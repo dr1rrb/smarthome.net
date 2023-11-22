@@ -15,12 +15,15 @@
     <PackageReference Include="System.Collections.Immutable" Version="1.7.0" />
     <PackageReference Include="System.Dynamic.Runtime" Version="4.3.0" />
     <PackageReference Include="dr1rrb.System.Net.Mqtt" Version="0.5.50-beta" />
-	<PackageReference Include="System.Reactive" Version="4.3.2" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="_ThirdParties\Hass\Discovery\" />
     <Folder Include="_ThirdParties\Xiaomi\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mavri.HomeAssistant\Mavri.HomeAssistant.csproj" />
   </ItemGroup>
 
   <ItemGroup>

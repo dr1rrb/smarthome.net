@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
+using Mavri.Ha.Api;
 using Mavri.Ha.Core;
 using SmartHomeDotNet.Hass;
-using SmartHomeDotNet.Hass.Api;
 using SmartHomeDotNet.SmartHome.Commands;
 using SmartHomeDotNet.SmartHome.Devices_2;
 using SmartHomeDotNet.Utils;
